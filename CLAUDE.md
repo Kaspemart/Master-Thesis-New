@@ -107,7 +107,9 @@ Important nuance flagged by supervisor: a small error in a parameter like `φ` (
 ### Architecture
 - Not yet finalized — finding the best architecture is part of the simulation study
 - Leading candidates: convolutional neural networks (CNNs), recurrent networks (RNNs/LSTMs)
+- Supervisor guidance: if estimating parameters AND latent states jointly, LSTM may be best (sequential structure fits); if estimating parameters only from the full return series, CNN may outperform LSTM (LSTM may struggle with long-range memory over full series)
 - CNNs have shown strong performance and training stability on financial time series in existing literature
+- Architecture comparison is a core deliverable of the simulation study
 
 ### Input
 - Sequence of observed log-returns `r_1, ..., r_T`
@@ -118,6 +120,10 @@ Important nuance flagged by supervisor: a small error in a parameter like `φ` (
 ### Training data
 - Fully simulated: generate thousands of (parameter, return sequence) pairs from the SV model
 - True parameters are known by construction — this is the key advantage of simulation-based training
+- Target dataset size: at least 100,000 simulated series (Fičura & Witzany used 50,000 which supervisor considers potentially too small)
+- Generate the full dataset once and save it permanently — it will be reused across all experiments
+- Split into in-sample (training) and out-of-sample (evaluation) portions — never evaluate on training data
+- **Parameter ranges should be deliberately wide** — wider than typical literature values, to ensure the trained network generalizes across asset classes (e.g. currencies have lower volatility than equities; a narrow training range produces a less robust estimator)
 
 ### Parameter transformations
 - Some parameters have bounded domains (e.g. `φ ∈ (-1,1)`, `σ_η > 0`)
@@ -147,9 +153,20 @@ Important nuance flagged by supervisor: a small error in a parameter like `φ` (
 - **Literature review on SV model evolution** — what models are most commonly used today in financial econometrics, and why
 
 ### Part II — Empirical (not yet written)
-- Chapter 4: Simulation Study — architecture search, sample size analysis, benchmark comparison
-- Chapter 5: Misspecification Analysis — robustness testing
-- Chapter 6: Real Data Application — apply to real financial returns, compare methods
+Two confirmed parts:
+
+**Part 1 — Simulation Study**
+- Compare multiple NN architectures (CNN, LSTM, potentially others) on simulated data
+- Find which architecture performs best and most robustly
+- Test how sample size (length of return series) affects performance
+- Compare best NN against classical benchmark
+- Investigate misspecification: train on one model, test on another
+
+**Part 2 — Application Study**
+- Take the best architecture from Part 1
+- Apply to real financial return data
+- Compare parameter estimates against classical benchmark
+- Assess economic plausibility of estimates
 
 ---
 
@@ -178,17 +195,6 @@ Important nuance flagged by supervisor: a small error in a parameter like `φ` (
 - Supervisor meeting: completed, notes incorporated into this file
 - Implementation: not yet started
 - Repository: created, empty
-
----
-
-## Notes for Claude
-
-**Working principles — apply these in every session:**
-
-- **Question everything.** Do not accept assumptions at face value. If a design choice, parameter value, or architectural decision seems arbitrary or underspecified, raise it explicitly before proceeding.
-- **Be precise and thorough.** This is a master's thesis — correctness matters more than speed. Prefer doing fewer things correctly over many things approximately.
-- **Go step by step on larger tasks.** Break implementation into small, verifiable increments. Confirm each step works before moving to the next. Do not skip ahead.
-- **Update this file as decisions are made.** Every time an open question in "Key Decisions Still Open" is resolved, update that section immediately so future sessions start with accurate context.
 
 ---
 
