@@ -181,4 +181,15 @@ Important nuance flagged by supervisor: a small error in a parameter like `φ` (
 
 ---
 
+## Notes for Claude
+
+**Working principles — apply these in every session:**
+
+- **Question everything.** Do not accept assumptions at face value. If a design choice, parameter value, or architectural decision seems arbitrary or underspecified, raise it explicitly before proceeding.
+- **Be precise and thorough.** This is a master's thesis — correctness matters more than speed. Prefer doing fewer things correctly over many things approximately.
+- **Go step by step on larger tasks.** Break implementation into small, verifiable increments. Confirm each step works before moving to the next. Do not skip ahead.
+- **Update this file as decisions are made.** Every time an open question in "Key Decisions Still Open" is resolved, update that section immediately so future sessions start with accurate context.
+
+---
+
 *Last updated: after first supervisor meeting and first draft review*
