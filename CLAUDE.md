@@ -13,7 +13,7 @@ This file provides essential context about an ongoing master's thesis project. R
 
 **Core question:** Under what conditions does neural network-based parameter estimation of stochastic volatility models outperform classical benchmark methods, and how does model misspecification affect this comparison?
 
-**Why this matters:** Classical methods for estimating stochastic volatility (SV) models (e.g. MCMC, particle filters) are statistically rigorous but computationally expensive — each new dataset requires running the full estimation procedure from scratch, which can take minutes to hours. Neural networks, once trained, can produce parameter estimates in milliseconds. The thesis investigates whether this speed advantage comes at an acceptable cost in accuracy and reliability, and specifically what happens when the model assumptions are violated.
+**Why this matters:** Classical methods for estimating stochastic volatility (SV) models (e.g. MCMC, particle filters) are statistically rigorous but computationally expensive — each new dataset requires running the full estimation procedure from scratch, which can take minutes to hours. Neural networks, once trained, can produce parameter estimates in milliseconds. The thesis investigates whether this enormous speed advantage comes at an acceptable cost in accuracy and robustness, and specifically under what conditions the trade-off is favourable.
 
 ---
 
@@ -29,7 +29,7 @@ The thesis tests whether this approach works, when it fails, and why.
 
 ## The Models
 
-### Base Model
+### Base Model — PRIMARY IMPLEMENTATION TARGET
 The discrete-time stochastic volatility model with latent log-volatility:
 
 - Observation equation: `r_t = exp(h_t / 2) * ε_t` where `ε_t ~ N(0,1)`
@@ -40,162 +40,191 @@ Parameters to estimate:
 - `φ` — persistence of volatility (values close to 1 = strong clustering)
 - `σ_η` — volatility of volatility
 
-This is the primary model for training and evaluation.
+### SV with Leverage — PRIMARY IMPLEMENTATION TARGET
+Extends the base model by introducing a correlation `ρ` between the return shock `ε_t` and the volatility shock `η_t`. For equities, `ρ` is typically negative (the leverage effect: negative returns tend to increase future volatility). This adds one parameter to estimate: `ρ ∈ (−1, 1)`.
 
-### Extended Model Variants (to be described in thesis, selectively implemented)
-In order of increasing complexity:
-1. **Base SV** — as above
-2. **SV with leverage** — correlation between return shocks and volatility shocks (important for equities; negative correlation = leverage effect)
-3. **SV with jumps** — occasional large discontinuous moves in returns and/or volatility
-4. **SV with long memory** — slow decay of volatility autocorrelation
-5. **SV with regime switching** — discrete shifts in the long-run volatility level
+### Misspecification Scenarios (described theoretically, NOT fully implemented)
+The following variants are used only as out-of-distribution test cases in the misspecification analysis:
+- **SV with jumps** — occasional large discontinuous moves in returns and/or volatility
+- **SV with long memory** — slow decay of volatility autocorrelation
+- **SV with regime switching** — discrete shifts in the long-run volatility level
 
-Not all variants will be fully implemented. The thesis will describe all of them theoretically and implement a subset for the empirical work. Which subset is TBD based on complexity and time constraints.
+**Do not implement these in full.** They exist only to generate misspecified test data.
+
+---
+
+## The Research Contribution
+
+The core contribution is a **systematic misspecification analysis**. Most existing work evaluates neural network estimators only under correct model specification — where training and test data come from the same model. This thesis goes further in two specific ways:
+
+### 1. Misspecification Analysis
+- Train a neural network on data from a simpler model (e.g. base SV with Gaussian errors)
+- Test it on data from a more complex model (e.g. fat tails, jumps, leverage)
+- Measure how badly the parameter estimates deteriorate
+- Compare this deterioration against how MCMC handles the same misspecification
+
+Key nuance: a small error in a parameter like `φ` (volatility persistence) may look minor in terms of MSE but can have a large impact on the likelihood of the model. This means the choice of evaluation metric matters and needs careful justification.
+
+### 2. Sample Size Analysis
+- Investigate how the length of the return series affects performance
+- The expectation is that neural networks perform better with more data, while classical probabilistic methods may hold up better with shorter series
+- The length of the time series is itself a variable that determines which method wins — this is an interesting and practically relevant finding
 
 ---
 
 ## The Approach
 
-### Step 1 — Simulation Study
-- Simulate many time series from the SV model with known parameters
-- Train a neural network to map from observed return sequences → model parameters
-- Evaluate accuracy: how well does the network recover the true parameters?
-- Vary sample size (short vs long time series) to see how data length affects performance
-- Compare against classical benchmark method (most likely MCMC)
-- Find the best-performing neural network architecture and configuration
+### Part 1 — Simulation Study
+- Generate at least 100,000 simulated return series from the SV model with known parameters
+- Split into training (in-sample) and evaluation (out-of-sample) portions — **never evaluate on training data**
+- Compare multiple neural network architectures (CNN, LSTM) to find the best performing one
+- Test how the length of the return series affects performance (T = 500, 1,000, 2,000)
+- Compare the best neural network against MCMC benchmark
+- Once the best architecture is found, stress test it under misspecification
 
-### Step 2 — Misspecification Analysis
-- Train the network on data from one model (e.g. Gaussian errors)
-- Test it on data from a different model (e.g. fat-tailed errors, jumps, different parameter distribution)
-- Measure how badly performance deteriorates
-- Compare degradation of neural network vs classical methods under the same misspecification
-- This is the key research contribution — most existing work does not do this systematically
-
-### Step 3 — Real Data Application
-- Apply the trained neural network to real financial return data
-- Compare parameter estimates against classical method benchmarks
-- Assess whether neural estimates are economically reasonable
-- Use this to draw conclusions about practical reliability
+### Part 2 — Application Study
+- Take the best architecture from Part 1
+- Apply to real financial return data
+- Compare parameter estimates against MCMC benchmark
+- Assess economic plausibility of estimates
+- Draw conclusions about practical reliability
 
 ---
 
-## Classical Benchmark Methods
+## Classical Benchmark
 
-The neural network results will be compared against at least one classical method. Candidates:
-- **MCMC** (most likely primary benchmark — well-established, well-covered in thesis already)
-- **Particle filters / SMC** (secondary reference)
-- **Efficient Method of Moments** (to be added to thesis)
-- **Discretized nonlinear filters** (to be added to thesis — these discretize the latent state space to approximate the likelihood directly)
+**Bayesian MCMC is the confirmed benchmark.** It builds on two key references:
+- **Kim, Shephard & Chib (1998)** — mixture of normals approximation within MCMC framework
+- **Kastner & Frühwirth-Schnatter (2014)** — ASIS interweaving strategy for improved sampling efficiency
 
-The benchmark choice is not yet finalized but MCMC is the leading candidate.
+MCMC has established itself as the dominant and most reliable approach in academic research, offering the best combination of statistical accuracy, flexibility, and ability to handle complex model specifications. It is therefore the natural benchmark for comparison with neural network methods.
 
 ---
 
 ## Evaluation Metrics
 
-Not yet finalized. Options under consideration:
+**Not yet finalised.** The main candidates are:
 - **Predictive likelihood** (estimated via particle filter) — general, accounts for full distribution, used by Fičura & Witzany — but lower interpretability
-- **MSE / RMSE per parameter** — interpretable but ignores distributional properties
+- **MSE / RMSE per parameter** — more interpretable but can be misleading: a small parameter error can still have a large impact on the likelihood
 - **Bias and variance of parameter estimates** — useful for diagnosing systematic errors
 
-Important nuance flagged by supervisor: a small error in a parameter like `φ` (autocorrelation of volatility) may have small MSE but large impact on likelihood — so MSE alone can be misleading. Metric choice needs justification.
+**Key constraint:** MSE alone is not sufficient. The metric choice must explicitly account for the fact that small parameter errors can have large likelihood impacts. The choice needs explicit justification in the thesis.
 
 ---
 
 ## Neural Network Implementation
 
 ### Architecture
-- Not yet finalized — finding the best architecture is part of the simulation study
-- Leading candidates: convolutional neural networks (CNNs), recurrent networks (RNNs/LSTMs)
-- Supervisor guidance: if estimating parameters AND latent states jointly, LSTM may be best (sequential structure fits); if estimating parameters only from the full return series, CNN may outperform LSTM (LSTM may struggle with long-range memory over full series)
-- CNNs have shown strong performance and training stability on financial time series in existing literature
+- Not yet finalised — finding the best architecture is part of the simulation study
+- Leading candidates: **CNN** and **LSTM**
+- If estimating parameters only from the full return series: CNN likely better (LSTM may struggle with long-range memory over full series)
+- If estimating parameters AND latent states jointly: LSTM may be better (sequential structure fits naturally)
 - Architecture comparison is a core deliverable of the simulation study
 
 ### Input
 - Sequence of observed log-returns `r_1, ..., r_T`
 
 ### Output
-- Estimated parameters: `μ`, `φ`, `σ_η` (and additional parameters for extended models)
+- Estimated parameters: `μ`, `φ`, `σ_η` (base model) plus `ρ` for the leverage extension
 
-### Training data
-- Fully simulated: generate thousands of (parameter, return sequence) pairs from the SV model
-- True parameters are known by construction — this is the key advantage of simulation-based training
-- Target dataset size: at least 100,000 simulated series (Fičura & Witzany used 50,000 which supervisor considers potentially too small)
-- Generate the full dataset once and save it permanently — it will be reused across all experiments
-- Split into in-sample (training) and out-of-sample (evaluation) portions — never evaluate on training data
-- **Parameter ranges should be deliberately wide** — wider than typical literature values, to ensure the trained network generalizes across asset classes (e.g. currencies have lower volatility than equities; a narrow training range produces a less robust estimator)
+### Training Data
+- Target: **at least 100,000 simulated series** (Fičura & Witzany used 50,000 which supervisor considers too small)
+- Generate once and save permanently — reused across all experiments (`.npz` format)
+- Split into training and held-out test portions
+- **Parameter ranges must be deliberately wide** — wider than typical literature values, to generalise across asset classes (currencies have lower volatility than equities; narrow ranges produce less robust estimators)
+- **Baseline series length: 1,000 observations** (approximately 4 years of daily data)
+- Also test T = 500 (short) and T = 2,000 (long) as part of the sample size analysis
 
-### Parameter transformations
-- Some parameters have bounded domains (e.g. `φ ∈ (-1,1)`, `σ_η > 0`)
-- May apply transformations (e.g. log, logit) so the network outputs unconstrained values
-- This is standard practice and needs to be handled carefully
+### Parameter Transformations
+Apply transformations so the network always outputs unconstrained values; transform back at inference time:
+- `φ ∈ (−1, 1)` — apply **logit** transformation
+- `σ_η > 0` — apply **log** transformation
+- `ρ ∈ (−1, 1)` — apply **logit** transformation
 
 ### Language / Stack
-- Python
-- Likely libraries: PyTorch or TensorFlow for neural networks, NumPy/SciPy for simulation, possibly existing MCMC packages for benchmarks (e.g. `stochvol` R package via rpy2, or a Python MCMC implementation)
+- **Python with PyTorch** (confirmed — not TensorFlow)
+- NumPy / SciPy for simulation
+- MCMC benchmark: Python implementation or R `stochvol` package via `rpy2`
+- Data storage: NumPy `.npz` files
 
 ---
 
-## Thesis Structure (Current)
+## Thesis Structure
 
-### Part I — Theoretical (draft exists)
-- Chapter 1: Stochastic Volatility — model formulation, latent state, likelihood intractability
-- Chapter 2: Classical Estimation Methods — likelihood-based, Bayesian/MCMC, particle methods, practical limitations
-  - **TO ADD:** Efficient Method of Moments section
-  - **TO ADD:** Discretized nonlinear filter section
-  - **TO ADD:** Summary of which classical method performs best according to literature
-- Chapter 3: Neural Networks for SV Estimation — existing literature, amortized inference, limitations of current work
-  - **TO REVISE:** Strengthen transition from Ch2 to Ch3 with concrete speed comparison numbers
-  - **TO REVISE:** Section 3.3 currently repeats 3.2 — needs to be rewritten as a structured problem statement
+### Part I — Theoretical (COMPLETE — supervisor revisions incorporated)
 
-### Part I additions needed
-- **SV model variants review** — describe the progression from base SV to more complex variants (leverage, jumps, long memory, regime switching), including Eraker et al. (2003) jump model
-- **Literature review on SV model evolution** — what models are most commonly used today in financial econometrics, and why
+**Chapter 1: Stochastic Volatility**
+- 1.1 SV Models (continuous and discrete time formulations)
+- 1.2 Latent Volatility and State-Space Representation
+- 1.3 Likelihood Intractability
+- 1.4 Extensions of the Base Model (leverage, jumps, long memory, regime switching)
+- 1.5 Current Use Practice
 
-### Part II — Empirical (not yet written)
-Two confirmed parts:
+**Chapter 2: Classical Estimation Methods**
+- 2.1 Likelihood-Based Methods
+- 2.2 Bayesian Framework
+- 2.3 Simulation-Based Methods (MCMC, PMCMC, SMC², EMM, Nonlinear Filtering)
+- 2.4 Practical Limitations (including summary noting MCMC as best benchmark)
 
-**Part 1 — Simulation Study**
-- Compare multiple NN architectures (CNN, LSTM, potentially others) on simulated data
-- Find which architecture performs best and most robustly
-- Test how sample size (length of return series) affects performance
-- Compare best NN against classical benchmark
-- Investigate misspecification: train on one model, test on another
+**Chapter 3: Neural Networks for SV Estimation**
+- 3.1 Neural Networks in Volatility Modelling
+- 3.2 Neural Estimation of SV Parameters
+- 3.3 Limitations of Existing Approaches
 
-**Part 2 — Application Study**
-- Take the best architecture from Part 1
-- Apply to real financial return data
-- Compare parameter estimates against classical benchmark
-- Assess economic plausibility of estimates
+**Remaining citation work:** Citations added in recent revisions have not all been manually verified against the source papers — must verify before final submission.
+
+### Part II — Empirical (NOT YET WRITTEN)
+- Chapter 4: Simulation Study
+- Chapter 5: Misspecification Analysis
+- Chapter 6: Real Data Application
 
 ---
 
 ## Key Decisions Still Open
 
-1. **Which SV model variants to actually implement** (not just describe) — base SV is confirmed; leverage effect is likely; jumps are possible; long memory and regime switching are stretch goals
-2. **Which classical benchmark to use** — MCMC is leading candidate, not yet confirmed
-3. **Evaluation metric** — predictive likelihood vs MSE vs combined approach
-4. **Neural network architecture** — to be determined via simulation study
-5. **Real data source** — not yet specified (likely equity index returns, e.g. S&P 500 or similar)
+1. **Evaluation metric** — predictive likelihood vs MSE vs combined approach — needs explicit justification
+2. **Neural network architecture** — to be determined via simulation study (CNN vs LSTM)
+3. **Real data source** — not yet specified (likely equity index returns, e.g. S&P 500 or similar)
+4. **Whether to estimate parameters only or parameters and latent states jointly** — affects architecture choice
+
+**Resolved decisions (no longer open):**
+- Benchmark method: **MCMC confirmed** (Kim et al. 1998; Kastner & Frühwirth-Schnatter 2014)
+- Model variants to implement: **base SV and SV with leverage** — all others are misspecification scenarios only
+- Training dataset size: **≥ 100,000 series**
+- Series lengths to test: **T = 500, 1,000, 2,000**
+- Stack: **Python + PyTorch + NumPy + .npz storage**
 
 ---
 
 ## Important Constraints and Risks
 
-- **Citation accuracy:** Some citations in the current draft have not been manually verified against the source papers. Before finalizing any claim, verify it against the actual paper.
-- **Scope creep:** The supervisor suggested many extensions (long memory, regime switching, multiple model variants). Not all of these need to be implemented. Stay focused on doing fewer things well rather than many things superficially.
-- **Misspecification is the contribution:** The novelty of this thesis is the systematic misspecification analysis. Everything else (simulation study, benchmark comparison) is scaffolding. Don't lose sight of this.
-- **Parameter identifiability:** There is a known issue in SV models where different parameter combinations can produce similar return dynamics. This affects how well any method (neural or classical) can recover parameters. This should be acknowledged and ideally analyzed.
+- **Misspecification is the contribution:** The novelty of this thesis is the systematic misspecification analysis. Everything else (simulation study, benchmark comparison) is scaffolding. Do not lose sight of this.
+- **Scope creep:** Jumps, long memory, and regime switching are misspecification scenarios only — do not implement them fully.
+- **Citation accuracy:** Citations added in recent revisions have not all been manually verified. Must verify before final submission.
+- **Parameter identifiability:** Different parameter combinations can produce similar return dynamics. This affects both neural and classical methods and should be acknowledged in the thesis.
+- **Metric choice:** MSE alone is insufficient. The metric must account for the fact that small parameter errors can have large likelihood impacts.
 
 ---
 
 ## Current Status
 
-- Part I theoretical draft: complete first draft, needs revisions per above
-- Supervisor meeting: completed, notes incorporated into this file
-- Implementation: not yet started
-- Repository: created, empty
+- Part I theoretical draft: **COMPLETE** — all supervisor revisions incorporated
+- Part I citations: need manual verification against source papers
+- Supervisor meeting: completed, all notes incorporated
+- Implementation: **NOT YET STARTED** — currently in specification/planning phase
+- Repository: created, environment set up (Python + PyTorch via uv)
 
 ---
 
-*Last updated: after first supervisor meeting and first draft review*
+## Notes for Claude
+
+**Working principles — apply these in every session:**
+
+- **Question everything.** Do not accept assumptions at face value. If a design choice, parameter value, or architectural decision seems arbitrary or underspecified, raise it explicitly before proceeding.
+- **Be precise and thorough.** This is a master's thesis — correctness matters more than speed. Prefer doing fewer things correctly over many things approximately.
+- **Go step by step on larger tasks.** Break implementation into small, verifiable increments. Confirm each step works before moving to the next. Do not skip ahead.
+- **Update this file as decisions are made.** Every time an open question in "Key Decisions Still Open" is resolved, update that section immediately so future sessions start with accurate context.
+
+---
+
+*Last updated: 2026-04-19 — research contribution clarified, model variants finalised, benchmark confirmed, series lengths specified*
