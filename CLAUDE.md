@@ -144,7 +144,7 @@ Apply transformations so the network always outputs unconstrained values; transf
 ### Language / Stack
 - **Python with PyTorch** (confirmed — not TensorFlow)
 - NumPy / SciPy for simulation
-- MCMC benchmark: Python implementation or R `stochvol` package via `rpy2`
+- MCMC benchmark: **PyMC** (pure Python, NUTS sampler) — cite Kim et al. (1998) and Kastner & Frühwirth-Schnatter (2014) as methodological references, PyMC as the implementation tool
 - Data storage: NumPy `.npz` files
 
 ---
@@ -188,7 +188,7 @@ Apply transformations so the network always outputs unconstrained values; transf
 4. **Whether to estimate parameters only or parameters and latent states jointly** — affects architecture choice
 
 **Resolved decisions (no longer open):**
-- Benchmark method: **MCMC confirmed** (Kim et al. 1998; Kastner & Frühwirth-Schnatter 2014)
+- Benchmark method: **MCMC confirmed** — implemented via **PyMC** (Python, NUTS sampler); Kim et al. (1998) and Kastner & Frühwirth-Schnatter (2014) cited as methodological references
 - Model variants to implement: **base SV and SV with leverage** — all others are misspecification scenarios only
 - Training dataset size: **≥ 100,000 series**
 - Series lengths to test: **T = 500, 1,000, 2,000**
