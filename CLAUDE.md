@@ -139,7 +139,15 @@ MCMC has established itself as the dominant and most reliable approach in academ
 Apply transformations so the network always outputs unconstrained values; transform back at inference time:
 - `φ ∈ (−1, 1)` — apply **logit** transformation
 - `σ_η > 0` — apply **log** transformation
-- `ρ ∈ (−1, 1)` — apply **logit** transformation
+- `ρ ∈ (−1, 1)` — apply **arctanh** transformation (not logit — logit requires input in (0,1) but ρ can be negative); inverse is tanh; training range `(−0.95, 0.5)` — covers all realistic asset classes (equities: −0.7 to −0.3, FX: near 0, commodities: up to +0.2) without including near-singular extremes that are economically implausible
+
+### Correlated Noise Implementation (Leverage Model)
+The leverage effect is implemented via **Cholesky decomposition** of the 2×2 correlation matrix:
+- Draw independent `z1, z2 ~ N(0,1)`
+- Set `ε_t = z1` (return shock)
+- Set `η_t = ρ·z1 + sqrt(1−ρ²)·z2` (volatility shock, correlated with ε_t)
+- This is mathematically equivalent to drawing jointly from N(0, Σ) where Σ = [[1,ρ],[ρ,1]]
+- **Note for methodology chapter:** This Cholesky decomposition approach must be described explicitly when writing up the leverage model specification.
 
 ### Language / Stack
 - **Python with PyTorch** (confirmed — not TensorFlow)
