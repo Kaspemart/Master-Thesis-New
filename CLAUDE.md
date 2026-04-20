@@ -97,7 +97,16 @@ Key nuance: a small error in a parameter like `φ` (volatility persistence) may 
 - **Kim, Shephard & Chib (1998)** — mixture of normals approximation within MCMC framework
 - **Kastner & Frühwirth-Schnatter (2014)** — ASIS interweaving strategy for improved sampling efficiency
 
-MCMC has established itself as the dominant and most reliable approach in academic research, offering the best combination of statistical accuracy, flexibility, and ability to handle complex model specifications. It is therefore the natural benchmark for comparison with neural network methods.
+Implementation: **PyMC** (Python, NUTS sampler). Priors set to Uniform matching the simulation training ranges — ensures a fair comparison where both NN and MCMC operate with the same information about parameter space.
+
+**Evaluation setup:**
+- MCMC is run on a held-out test set of **200 series** (never seen during NN training), T=1,000
+- Parallelised across 4 CPU cores (~4 hours wall time)
+- Default: 1,000 draws + 1,000 tuning steps; fallback: 500+500 if needed
+- Results checkpointed after each series — crash-safe
+- Output per series: posterior mean, posterior SD, full samples (1,000 draws × 3 params), R-hat diagnostics
+
+**Important limitation (acknowledge in results chapter):** Uniform priors matched to simulation ranges give MCMC slightly idealised conditions — in a real application, a researcher would not know the true parameter ranges in advance. This means the thesis results are conservative about the NN's relative advantage.
 
 ---
 

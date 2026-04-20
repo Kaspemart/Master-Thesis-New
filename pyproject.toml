@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=2.2",
     "tqdm>=4.66",
     "pymc>=5.0",
+    "joblib>=1.5.3",
 ]
 
 [project.optional-dependencies]
@@ -30,3 +31,6 @@ packages = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "slow: marks tests as slow (deselect with '-m not slow')",
+]
