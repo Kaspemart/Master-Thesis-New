@@ -48,9 +48,9 @@ def run_mcmc_single(
         mu        ~ Uniform(-10, 0)
         phi       ~ Uniform(0.5, 0.999)
         sigma_eta ~ Uniform(0.05, 1.0)
-        h         ~ AR(1) with intercept mu*(1-phi), coef phi, noise sigma_eta
-                    init h_0 ~ N(mu, sigma_eta / sqrt(1 - phi^2))   [stationary]
-        r_t       ~ Normal(0, exp(h_t / 2))                         [observed]
+        v         ~ AR(1): v_t = phi*v_{t-1} + sigma_eta*eta_t,  v_0 ~ N(0, sigma_eta^2/(1-phi^2))
+        h_t        = mu + v_t                                         [log-volatility]
+        r_t       ~ Normal(0, exp(h_t / 2))                          [observed]
 
     Args:
         returns: Observed log-returns, shape (T,).
@@ -72,18 +72,21 @@ def run_mcmc_single(
         phi       = pm.Uniform("phi",       lower=0.5,   upper=0.999)
         sigma_eta = pm.Uniform("sigma_eta", lower=0.05,  upper=1.0)
 
-        # AR(1) latent log-volatility:
-        #   h_t = mu*(1-phi) + phi*h_{t-1} + sigma_eta*eta_t
-        # which is equivalent to: h_t = mu + phi*(h_{t-1} - mu) + sigma_eta*eta_t
-        # init_dist = stationary distribution N(mu, sigma_eta^2 / (1 - phi^2))
-        h = pm.AR(
-            "h",
-            rho=[mu * (1 - phi), phi],
+        # AR(1) latent log-volatility — centered parameterisation:
+        #   v_t = phi * v_{t-1} + sigma_eta * eta_t   (AR(1) centred at 0)
+        #   h_t = mu + v_t                             (shift by long-run mean)
+        # This is equivalent to: h_t = mu + phi*(h_{t-1} - mu) + sigma_eta*eta_t
+        # Scalar rho=phi ensures PyMC treats this as AR(1), not AR(2).
+        # Stationary distribution of v: N(0, sigma_eta^2 / (1 - phi^2))
+        v = pm.AR(
+            "v",
+            rho=phi,
             sigma=sigma_eta,
             constant=False,
-            init_dist=pm.Normal.dist(mu, sigma_eta / pm.math.sqrt(1 - phi**2)),
+            init_dist=pm.Normal.dist(0.0, sigma_eta / pm.math.sqrt(1 - phi**2)),
             shape=T,
         )
+        h = mu + v
 
         pm.Normal("r_obs", mu=0.0, sigma=pm.math.exp(h / 2.0), observed=returns)
 
