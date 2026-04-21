@@ -108,7 +108,8 @@ class SVLeverageParams(SVParams):
         Map an (N, 4) array of [μ, φ, σ_η, ρ] to unconstrained space.
 
         First 3 columns: same as SVParams.transform().
-        4th column (ρ): logit transformation = log(ρ / (1 − ρ)).
+        4th column (ρ): arctanh transformation = arctanh(ρ). Correct for ρ ∈ (−1,1).
+        Note: logit would be wrong here — logit requires input in (0,1) but ρ can be negative.
 
         Args:
             params: float array of shape (N, 4) in natural parameter space.
@@ -122,14 +123,14 @@ class SVLeverageParams(SVParams):
         out[:, 0] = params[:, 0]                                    # μ: identity
         out[:, 1] = np.log(params[:, 1] / (1.0 - params[:, 1]))    # φ: logit (φ ∈ (0,1))
         out[:, 2] = np.log(params[:, 2])                            # σ_η: log
-        out[:, 3] = np.arctanh(params[:, 3])                        # ρ: arctanh (ρ ∈ (-1,1))
+        out[:, 3] = np.arctanh(params[:, 3])                        # ρ: arctanh (ρ ∈ (−1,1)); NOT logit (logit requires input > 0)
         return out
 
     def inverse_transform(self, params_t: np.ndarray) -> np.ndarray:
         """
         Inverse of transform(). Maps unconstrained space back to natural space.
 
-        4th column: sigmoid = 1 / (1 + exp(−ρ_t)).
+        4th column (ρ): tanh = (exp(2ρ_t) − 1) / (exp(2ρ_t) + 1). Inverse of arctanh.
 
         Args:
             params_t: float array of shape (N, 4) in unconstrained space.
