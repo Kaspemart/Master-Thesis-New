@@ -102,7 +102,8 @@ Implementation: **PyMC** (Python, NUTS sampler). Priors set to Uniform matching 
 **Evaluation setup:**
 - MCMC is run on a held-out test set of **200 series per T value** (T=500, T=1,000, T=2,000), never seen during NN training
 - Parallelised across 4 CPU cores (~15 min wall time per T-value — verified by pilot run)
-- Default: 1,000 draws + 1,000 tuning steps; fallback: 500+500 if needed
+- T=500, T=1000: 1,000 draws + 1,000 tuning steps, target_accept=0.9
+- T=2000: 1,000 draws + **2,000 tuning steps**, target_accept=0.9 — piloted and confirmed; 1,000 tune at T=2000 produced R-hat up to 1.56 and 298 divergences on one series; 2,000 tune reduced max R-hat to 1.17 with no divergences
 - Results checkpointed after each series — crash-safe
 - Output per series: posterior mean, posterior SD, full samples (1,000 draws × 3 params), R-hat diagnostics
 
@@ -150,7 +151,8 @@ Implementation: **PyMC** (Python, NUTS sampler). Priors set to Uniform matching 
 - Estimated parameters: `μ`, `φ`, `σ_η` (base model) plus `ρ` for the leverage extension
 
 ### Training Data
-- Target: **100,000 simulated series per T value** — three separate training datasets
+- Target: **100,000 simulated series per T value** (90k train + 10k validation) — three separate training datasets
+- **All 9 datasets (train/val/test × T=500/1000/2000) use the base SV model only.** Leverage training data is generated separately, later, when the leverage estimator and misspecification analysis are implemented.
 - Generate once and save permanently — reused across all experiments (`.npz` format)
 - **Never evaluate on training data** — held-out test set is kept strictly separate
 - **Parameter ranges must be deliberately wide** — wider than typical literature values, to generalise across asset classes
@@ -158,20 +160,25 @@ Implementation: **PyMC** (Python, NUTS sampler). Priors set to Uniform matching 
 
 **Dataset generation decisions (locked — do not change seeds):**
 
-| Dataset | N | T | Seed | Save latent_h? | File |
-|---------|---|---|------|----------------|------|
-| Test    | 200 | 500  | 42 | Yes | data/test_T500.npz  |
-| Test    | 200 | 1000 | 42 | Yes | data/test_T1000.npz |
-| Test    | 200 | 2000 | 42 | Yes | data/test_T2000.npz |
-| Train   | 100,000 | 500  | 123 | Yes | data/train_T500.npz  |
-| Train   | 100,000 | 1000 | 456 | Yes | data/train_T1000.npz |
-| Train   | 100,000 | 2000 | 789 | Yes | data/train_T2000.npz |
+| Dataset    | N      | T    | Seed | Save latent_h? | File |
+|------------|--------|------|------|----------------|------|
+| Test       | 200    | 500  | 42   | Yes | data/test_T500.npz  |
+| Test       | 200    | 1000 | 42   | Yes | data/test_T1000.npz |
+| Test       | 200    | 2000 | 42   | Yes | data/test_T2000.npz |
+| Train      | 90,000 | 500  | 123  | Yes | data/train_T500.npz  |
+| Train      | 90,000 | 1000 | 456  | Yes | data/train_T1000.npz |
+| Train      | 90,000 | 2000 | 789  | Yes | data/train_T2000.npz |
+| Validation | 10,000 | 500  | 321  | Yes | data/val_T500.npz  |
+| Validation | 10,000 | 1000 | 654  | Yes | data/val_T1000.npz |
+| Validation | 10,000 | 2000 | 987  | Yes | data/val_T2000.npz |
 
 **Seed strategy rationale (methodology chapter):**
-- Test set uses seed=42 for all three T values → same parameter draws and nested return paths (T=500 is literally the first 500 steps of T=1000). This makes the sample size comparison a controlled experiment: the only variable is T, not the parameter distribution or noise realisation. State this explicitly as a methodological strength.
+- Test set uses seed=42: simulated once at T=2000, then sliced to T=500 and T=1000. This gives identical parameter draws and nested return paths (T=500 is literally the first 500 steps of T=2000). The sample size comparison is a controlled experiment: the only variable is T. State this explicitly as a methodological strength. **Implementation note:** simulating independently at different T with the same seed does NOT produce nested paths because the simulator pre-draws all eps then all eta in two blocks — the RNG position for eta[t=0] shifts with T. Slicing from T=2000 is the correct approach.
 - Training uses different seeds per T value (123/456/789) — independence between training datasets, no nesting needed since the NN only requires the parameter distribution to match.
+- Validation uses different seeds per T value (321/654/987) — independent of both training and test sets, preventing any parameter-value overlap.
 - Training and test seeds are strictly separated to prevent parameter-value overlap between train and test.
-- **Total storage: ~2.8GB** (returns + latent_h for all 6 datasets). latent_h saved for all datasets because the architectural decision between parameter-only estimation and joint parameter+latent-state estimation is still open — if LSTM with joint estimation is chosen, latent_h is needed as a training target. Regenerating 300k series would be avoidable friction.
+- **Validation set purpose:** used exclusively for architecture selection and hyperparameter tuning. The 200-series test set is used only once, for final results reporting. Never tune on the test set.
+- **Total storage: ~3.1GB** (returns + latent_h for all 9 datasets). latent_h saved for all datasets because the architectural decision between parameter-only estimation and joint parameter+latent-state estimation is still open — if LSTM with joint estimation is chosen, latent_h is needed as a training target. Regenerating series would be avoidable friction.
 
 ### Parameter Transformations
 Apply transformations so the network always outputs unconstrained values; transform back at inference time:
@@ -190,7 +197,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 ### Language / Stack
 - **Python with PyTorch** (confirmed — not TensorFlow)
 - NumPy / SciPy for simulation
-- MCMC benchmark: **PyMC** (pure Python, NUTS sampler) — cite Kim et al. (1998) and Kastner & Frühwirth-Schnatter (2014) as methodological references, PyMC as the implementation tool
+- MCMC benchmark: **PyMC** (pure Python, NUTS sampler) — **do not cite Kim et al. (1998) or Kastner & Frühwirth-Schnatter (2014) as the implementation basis** (see citation mismatch note in constraints); cite NUTS/PyMC directly and frame as a general-purpose HMC baseline
 - Data storage: NumPy `.npz` files
 
 ---
@@ -251,7 +258,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 - **Metric choice:** MSE alone is insufficient. The metric must account for the fact that small parameter errors can have large likelihood impacts.
 - **MCMC citation mismatch — discuss with supervisor:** Kim et al. (1998) and Kastner & Frühwirth-Schnatter (2014) describe specialised SV samplers (mixture-of-normals approximation, ASIS interweaving) that exploit SV model structure. The implementation uses NUTS, a general-purpose HMC sampler that samples the full T-dimensional latent path jointly. NUTS likely has worse mixing than the specialised algorithms for this model — the borderline R-hat values are evidence of this. The thesis must either: (a) reframe NUTS as "modern general-purpose MCMC baseline" and cite it as such, or (b) implement a specialised sampler (e.g. stochvol R package). Supervisor input required before writing the results chapter.
 - **Validation set required for NN:** The current dataset plan has train (100k) and test (200). Architecture selection and hyperparameter tuning must use a separate validation set, not the test set. Split training data: 90k train / 10k validation. The 200-series test set is only used once, for final reporting. This must be incorporated before generating datasets.
-- **MCMC T=2000 unverified:** The 1000 draws/1000 tuning setting was piloted at T=1000 only. Run a separate pilot at T=2000 before committing to the full batch — the 2003-dimensional posterior may need more tuning steps.
+- **MCMC T=2000 piloted and resolved:** 2000 tune steps required (1000 was insufficient — R-hat up to 1.56, 298 divergences). Full batch should use `MCMCConfig(draws=1000, tune=2000, target_accept=0.9)`. Series in the low-φ region (φ ≈ 0.5) remain hard to identify even with 2000 tune — posterior means can be off by ~0.08 on φ. This is a fundamental NUTS limitation, not a tuning issue; acknowledge in results chapter.
 
 ---
 
