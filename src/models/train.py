@@ -3,6 +3,7 @@ Training loop and evaluation utilities for SV parameter estimation networks.
 """
 
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -41,6 +42,7 @@ class TrainConfig:
     num_workers: int = 0
     device: str = "cpu"
     checkpoint_dir: str = "checkpoints"
+    max_time_s: float | None = None   # per-trial wall-clock cap (seconds)
 
 
 @dataclass
@@ -99,20 +101,29 @@ def train(
 
     result = TrainResult()
     epochs_no_improve = 0
+    t_start = time.time()
 
     for epoch in range(1, config.epochs + 1):
         # --- Training ---
         model.train()
         train_loss = 0.0
+        timed_out = False
         for returns, params_t in train_loader:
+            if config.max_time_s is not None and (time.time() - t_start) > config.max_time_s:
+                timed_out = True
+                break
             returns  = returns.to(device)
             params_t = params_t.to(device)
             optimizer.zero_grad()
             preds = model(returns)
             loss = criterion(preds, params_t)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             train_loss += loss.item() * len(returns)
+        if timed_out:
+            logger.info("Aborting: trial exceeded %.0fs wall-clock limit at epoch %d", config.max_time_s, epoch)
+            break
         train_loss /= len(train_loader.dataset)
 
         # --- Validation ---
@@ -140,6 +151,11 @@ def train(
         if epochs_no_improve >= config.patience:
             logger.info("Early stopping at epoch %d (patience=%d)", epoch, config.patience)
             break
+
+        if epoch == 1 and (val_loss > 1e6 or not np.isfinite(val_loss)):
+            logger.info("Aborting: val loss exploded at epoch 1 (%.3e)", val_loss)
+            break
+
 
     logger.info(
         "Training complete. Best val loss=%.5f at epoch %d. Weights: %s",
