@@ -266,11 +266,33 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 
 - Part I theoretical draft: **COMPLETE** — all supervisor revisions incorporated
 - Part I citations: need manual verification against source papers
-- Supervisor meeting: completed, all notes incorporated
 - Simulators: **COMPLETE** — base SV and SV-with-leverage, 71 tests passing
-- MCMC benchmark: **COMPLETE** — PyMC NUTS runner with checkpointing and parallelism, pilot run verified
-- Datasets: **NOT YET GENERATED** — decisions locked, ready to generate
-- Neural network: **NOT YET STARTED** — architecture spec next step
+- Datasets: **COMPLETE** — all 9 datasets generated (train/val/test × T=500/1000/2000), test set nested from T=2000 slice
+- MCMC benchmark: **COMPLETE** — run on all 3 test sets (T=500/1000/2000), results in results/mcmc_T*/
+
+### Neural Network — T=1000 COMPLETE
+
+Five architectures (MLP, CNN, LSTM, TCN, Transformer) implemented. Random hparam search done for all 5 (log: experiments/hparam_log_T1000.jsonl). Full retraining on 90k dataset completed for MLP, CNN, TCN, Transformer. LSTM skipped — computationally infeasible at T=1000 on laptop (~1hr/epoch). Transformer trained with batch_size=32 to avoid MPS OOM (took ~4 days).
+
+**T=1000 test set results (N=200):**
+
+| Architecture | Params | μ RMSE | φ RMSE | σ_η RMSE | val_loss |
+|---|---|---|---|---|---|
+| TCN | 88,771 | 0.2787 | 0.0811 | 0.0821 | 0.142 |
+| Transformer | 406,147 | 0.2819 | 0.0806 | 0.0819 | 0.146 |
+| MLP | 267,779 | 0.2801 | 0.0859 | 0.0909 | 0.173 |
+| CNN | 790,019 | 0.2916 | 0.0891 | 0.0882 | 0.185 |
+| MCMC (NUTS) | N/A | 0.2968 | 0.0812 | 0.0722 | N/A |
+
+**Key finding:** NNs match or beat MCMC on μ and φ at T=1000. MCMC retains edge on σ_η. TCN best NN overall (lightest, fastest). Results saved in results/*_best_T1000/, checkpoints in checkpoints/*_best_T1000/.
+
+### Pending
+
+- **T=500 and T=2000 retraining** — need results at all 3 series lengths for sample size analysis. Decision open: reuse T=1000 best configs or run separate hparam searches.
+- **Misspecification analysis** — core thesis contribution. Generate leverage model test data, apply base-SV-trained TCN and MCMC, measure degradation vs correctly-specified case.
+- **Real data application** — apply best architecture to real financial returns, compare vs MCMC.
+
+*Last updated: 2026-05-07 — T=1000 simulation study complete*
 
 ---
 
