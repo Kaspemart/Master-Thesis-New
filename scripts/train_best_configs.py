@@ -48,15 +48,19 @@ def get_device() -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--T",      type=int, default=1000, choices=[500, 1000, 2000])
-    parser.add_argument("--arch",   type=str, default="all",
+    parser.add_argument("--T",        type=int, default=1000, choices=[500, 1000, 2000])
+    parser.add_argument("--hparam-T", type=int, default=None, choices=[500, 1000, 2000],
+                        help="Use hparam log from this T (default: same as --T). "
+                             "Set to 1000 to reuse T=1000 configs when training at T=500/2000.")
+    parser.add_argument("--arch",     type=str, default="all",
                         choices=["all"] + ALL_ARCHS)
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--epochs",   type=int, default=100)
     args = parser.parse_args()
 
-    device = get_device()
-    repo   = Path(__file__).parent.parent
-    log_path = repo / f"experiments/hparam_log_T{args.T}.jsonl"
+    device    = get_device()
+    repo      = Path(__file__).parent.parent
+    hparam_T  = args.hparam_T if args.hparam_T is not None else args.T
+    log_path  = repo / f"experiments/hparam_log_T{hparam_T}.jsonl"
 
     archs = ALL_ARCHS if args.arch == "all" else [args.arch]
 
@@ -67,9 +71,9 @@ def main() -> None:
     comparison = []
 
     for arch in archs:
-        best = best_config(arch, args.T, log_path)
+        best = best_config(arch, hparam_T, log_path)
         if best is None:
-            logger.warning("No search results for %s T=%d — skipping.", arch, args.T)
+            logger.warning("No search results for %s T=%d — skipping.", arch, hparam_T)
             continue
 
         hparams    = best["hparams"]
@@ -86,12 +90,19 @@ def main() -> None:
         logger.info("Trainable parameters: %d", n_params)
 
         batch_size = hparams.get("batch_size", 256)
-        # Transformer with T=1000 has O(T²) attention — cap batch to avoid OOM on MPS
+        # Transformer O(T²) attention — scale batch size down with T to avoid MPS OOM
         if arch == "transformer":
-            batch_size = min(batch_size, 32)
+            if args.T >= 2000:
+                batch_size = min(batch_size, 8)
+                transformer_val_batch = 8
+            else:
+                batch_size = min(batch_size, 32)
+                transformer_val_batch = 32
+        else:
+            transformer_val_batch = None
         train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,  num_workers=0)
-        val_loader   = DataLoader(val_ds,   batch_size=32 if arch == "transformer" else 512, shuffle=False, num_workers=0)
-        test_loader  = DataLoader(test_ds,  batch_size=32 if arch == "transformer" else 200, shuffle=False, num_workers=0)
+        val_loader   = DataLoader(val_ds,   batch_size=transformer_val_batch if transformer_val_batch else 512, shuffle=False, num_workers=0)
+        test_loader  = DataLoader(test_ds,  batch_size=transformer_val_batch if transformer_val_batch else 200, shuffle=False, num_workers=0)
 
         cfg = TrainConfig(
             epochs=args.epochs,

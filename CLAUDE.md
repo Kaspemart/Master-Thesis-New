@@ -270,29 +270,41 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 - Datasets: **COMPLETE** — all 9 datasets generated (train/val/test × T=500/1000/2000), test set nested from T=2000 slice
 - MCMC benchmark: **COMPLETE** — run on all 3 test sets (T=500/1000/2000), results in results/mcmc_T*/
 
-### Neural Network — T=1000 COMPLETE
+### Neural Network — Simulation Study COMPLETE
 
-Five architectures (MLP, CNN, LSTM, TCN, Transformer) implemented. Random hparam search done for all 5 (log: experiments/hparam_log_T1000.jsonl). Full retraining on 90k dataset completed for MLP, CNN, TCN, Transformer. LSTM skipped — computationally infeasible at T=1000 on laptop (~1hr/epoch). Transformer trained with batch_size=32 to avoid MPS OOM (took ~4 days).
+Five architectures (MLP, CNN, LSTM, TCN, Transformer) implemented. Random hparam search done for all 5 at T=1000 (log: experiments/hparam_log_T1000.jsonl). T=1000 best configs reused for T=500 and T=2000 retraining (justified: isolates effect of series length). LSTM skipped entirely — computationally infeasible (~1hr/epoch on MPS). Transformer T=2000 skipped — OOM even at batch_size=8. Full sample comparison saved in experiments/sample_size_comparison.json.
 
-**T=1000 test set results (N=200):**
+**Architecture comparison — T=1000 test set (N=200):**
 
-| Architecture | Params | μ RMSE | φ RMSE | σ_η RMSE | val_loss |
-|---|---|---|---|---|---|
-| TCN | 88,771 | 0.2787 | 0.0811 | 0.0821 | 0.142 |
-| Transformer | 406,147 | 0.2819 | 0.0806 | 0.0819 | 0.146 |
-| MLP | 267,779 | 0.2801 | 0.0859 | 0.0909 | 0.173 |
-| CNN | 790,019 | 0.2916 | 0.0891 | 0.0882 | 0.185 |
-| MCMC (NUTS) | N/A | 0.2968 | 0.0812 | 0.0722 | N/A |
+| Architecture | Params | μ RMSE | φ RMSE | σ_η RMSE |
+|---|---|---|---|---|
+| TCN | 88,771 | 0.2787 | 0.0811 | 0.0821 |
+| Transformer | 406,147 | 0.2819 | 0.0806 | 0.0819 |
+| MLP | 267,779 | 0.2801 | 0.0859 | 0.0909 |
+| CNN | 790,019 | 0.2916 | 0.0891 | 0.0882 |
+| MCMC (NUTS) | N/A | 0.2968 | 0.0812 | 0.0722 |
 
-**Key finding:** NNs match or beat MCMC on μ and φ at T=1000. MCMC retains edge on σ_η. TCN best NN overall (lightest, fastest). Results saved in results/*_best_T1000/, checkpoints in checkpoints/*_best_T1000/.
+**Sample size analysis — TCN vs Transformer vs MCMC (test set N=200):**
+
+| Method | T=500 μ | T=500 φ | T=500 σ | T=1000 μ | T=1000 φ | T=1000 σ | T=2000 μ | T=2000 φ | T=2000 σ |
+|---|---|---|---|---|---|---|---|---|---|
+| TCN | 0.362 | 0.091 | 0.100 | 0.279 | 0.081 | 0.082 | 0.201 | 0.075 | 0.074 |
+| Transformer | 0.354 | 0.096 | 0.099 | 0.282 | 0.081 | 0.082 | — | — | — |
+| MCMC | 0.370 | 0.091 | 0.089 | 0.297 | 0.081 | 0.072 | 0.199 | 0.073 | 0.055 |
+
+**Key findings:**
+- NNs match or beat MCMC on μ and φ at T=500 and T=1000. MCMC consistently wins on σ_η.
+- At T=2000, TCN and MCMC are essentially tied on μ and φ; MCMC pulls ahead on σ_η.
+- All methods improve with longer T — errors decrease monotonically.
+- TCN is the best NN: lightest (88k params), fastest, competitive across all T.
+- LSTM and Transformer are computationally infeasible at scale on laptop (MPS memory/speed limits).
 
 ### Pending
 
-- **T=500 and T=2000 retraining** — need results at all 3 series lengths for sample size analysis. Decision open: reuse T=1000 best configs or run separate hparam searches.
-- **Misspecification analysis** — core thesis contribution. Generate leverage model test data, apply base-SV-trained TCN and MCMC, measure degradation vs correctly-specified case.
-- **Real data application** — apply best architecture to real financial returns, compare vs MCMC.
+- **Misspecification analysis** — core thesis contribution. Generate leverage model test data (SV-with-leverage simulator already implemented), apply base-SV-trained TCN and MCMC to it, measure degradation vs correctly-specified case. Run at T=1000.
+- **Real data application** — apply TCN (best architecture) to real financial returns, compare vs MCMC.
 
-*Last updated: 2026-05-07 — T=1000 simulation study complete*
+*Last updated: 2026-05-11 — simulation study complete across all T values*
 
 ---
 
