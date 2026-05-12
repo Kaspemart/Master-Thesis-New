@@ -8,11 +8,14 @@ __pycache__/
 dist/
 build/
 
-# Data (real financial data and generated datasets not committed)
+# Data (generated datasets not committed — too large, regenerate via scripts/generate_datasets.py)
 data/*
 !data/.gitkeep
 !data/generated/.gitkeep
 data/generated/*.npz
+
+# Results — per-series MCMC checkpoints redundant with results.npz, exclude to keep repo small
+results/*/checkpoints/series_*.npz
 
 # Jupyter
 .ipynb_checkpoints/

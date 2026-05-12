@@ -97,7 +97,30 @@ Key nuance: a small error in a parameter like `φ` (volatility persistence) may 
 - **Kim, Shephard & Chib (1998)** — mixture of normals approximation within MCMC framework
 - **Kastner & Frühwirth-Schnatter (2014)** — ASIS interweaving strategy for improved sampling efficiency
 
-MCMC has established itself as the dominant and most reliable approach in academic research, offering the best combination of statistical accuracy, flexibility, and ability to handle complex model specifications. It is therefore the natural benchmark for comparison with neural network methods.
+Implementation: **PyMC** (Python, NUTS sampler). Priors set to Uniform matching the simulation training ranges — ensures a fair comparison where both NN and MCMC operate with the same information about parameter space.
+
+**Evaluation setup:**
+- MCMC is run on a held-out test set of **200 series per T value** (T=500, T=1,000, T=2,000), never seen during NN training
+- Parallelised across 4 CPU cores (~15 min wall time per T-value — verified by pilot run)
+- T=500, T=1000: 1,000 draws + 1,000 tuning steps, target_accept=0.9
+- T=2000: 1,000 draws + **2,000 tuning steps**, target_accept=0.9 — piloted and confirmed; 1,000 tune at T=2000 produced R-hat up to 1.56 and 298 divergences on one series; 2,000 tune reduced max R-hat to 1.17 with no divergences
+- Results checkpointed after each series — crash-safe
+- Output per series: posterior mean, posterior SD, full samples (1,000 draws × 3 params), R-hat diagnostics
+
+**MCMC model implementation note (methodology chapter):**
+- PyMC model uses **centered parameterisation**: fit `v_t = φ·v_{t-1} + σ_η·η_t` (AR(1) centred at 0), then `h_t = μ + v_t`
+- Scalar `rho=φ` passed to `pm.AR` — ensures AR(1), not AR(2); this distinction matters because `rho=[a, b]` with `constant=False` in PyMC 5 specifies AR(2), not AR(1) with intercept
+- Mathematically equivalent to `h_t = μ + φ(h_{t-1} − μ) + σ_η·η_t`
+- Must be described precisely in the methodology — the centred form should be stated explicitly
+
+**R-hat behavior for SV models (acknowledge honestly in results chapter):**
+- NUTS exhibited convergence difficulties on some series, particularly for sigma_eta (R-hat up to 1.71 on hard series, typically 1.05–1.12 in the pilot)
+- This is a limitation of using a general-purpose sampler on a high-dimensional latent variable model — NOT "expected and fine"
+- Parameter posterior means appear accurate despite borderline R-hat (verified on pilot series), but this is not guaranteed and should be stated carefully
+- Report all R-hat values; series with R-hat > 1.1 should be flagged as potentially unreliable in the results
+- This reinforces why the MCMC benchmark framing matters: NUTS may underperform relative to specialised SV samplers (see citation note above)
+
+**Important limitation (acknowledge in results chapter):** Uniform priors matched to simulation ranges give MCMC slightly idealised conditions — in a real application, a researcher would not know the true parameter ranges in advance. This means the thesis results are conservative about the NN's relative advantage.
 
 ---
 
@@ -128,16 +151,38 @@ MCMC has established itself as the dominant and most reliable approach in academ
 - Estimated parameters: `μ`, `φ`, `σ_η` (base model) plus `ρ` for the leverage extension
 
 ### Training Data
-- Target: **at least 100,000 simulated series** (Fičura & Witzany used 50,000 which supervisor considers too small)
+- Target: **100,000 simulated series per T value** (90k train + 10k validation) — three separate training datasets
+- **All 9 datasets (train/val/test × T=500/1000/2000) use the base SV model only.** Leverage training data is generated separately, later, when the leverage estimator and misspecification analysis are implemented.
 - Generate once and save permanently — reused across all experiments (`.npz` format)
-- Split into training and held-out test portions
-- **Parameter ranges must be deliberately wide** — wider than typical literature values, to generalise across asset classes (currencies have lower volatility than equities; narrow ranges produce less robust estimators)
-- **Baseline series length: 1,000 observations** (approximately 4 years of daily data)
-- Also test T = 500 (short) and T = 2,000 (long) as part of the sample size analysis
+- **Never evaluate on training data** — held-out test set is kept strictly separate
+- **Parameter ranges must be deliberately wide** — wider than typical literature values, to generalise across asset classes
+- Series lengths: T=500, T=1,000, T=2,000 — one training dataset each
+
+**Dataset generation decisions (locked — do not change seeds):**
+
+| Dataset    | N      | T    | Seed | Save latent_h? | File |
+|------------|--------|------|------|----------------|------|
+| Test       | 200    | 500  | 42   | Yes | data/test_T500.npz  |
+| Test       | 200    | 1000 | 42   | Yes | data/test_T1000.npz |
+| Test       | 200    | 2000 | 42   | Yes | data/test_T2000.npz |
+| Train      | 90,000 | 500  | 123  | Yes | data/train_T500.npz  |
+| Train      | 90,000 | 1000 | 456  | Yes | data/train_T1000.npz |
+| Train      | 90,000 | 2000 | 789  | Yes | data/train_T2000.npz |
+| Validation | 10,000 | 500  | 321  | Yes | data/val_T500.npz  |
+| Validation | 10,000 | 1000 | 654  | Yes | data/val_T1000.npz |
+| Validation | 10,000 | 2000 | 987  | Yes | data/val_T2000.npz |
+
+**Seed strategy rationale (methodology chapter):**
+- Test set uses seed=42: simulated once at T=2000, then sliced to T=500 and T=1000. This gives identical parameter draws and nested return paths (T=500 is literally the first 500 steps of T=2000). The sample size comparison is a controlled experiment: the only variable is T. State this explicitly as a methodological strength. **Implementation note:** simulating independently at different T with the same seed does NOT produce nested paths because the simulator pre-draws all eps then all eta in two blocks — the RNG position for eta[t=0] shifts with T. Slicing from T=2000 is the correct approach.
+- Training uses different seeds per T value (123/456/789) — independence between training datasets, no nesting needed since the NN only requires the parameter distribution to match.
+- Validation uses different seeds per T value (321/654/987) — independent of both training and test sets, preventing any parameter-value overlap.
+- Training and test seeds are strictly separated to prevent parameter-value overlap between train and test.
+- **Validation set purpose:** used exclusively for architecture selection and hyperparameter tuning. The 200-series test set is used only once, for final results reporting. Never tune on the test set.
+- **Total storage: ~3.1GB** (returns + latent_h for all 9 datasets). latent_h saved for all datasets because the architectural decision between parameter-only estimation and joint parameter+latent-state estimation is still open — if LSTM with joint estimation is chosen, latent_h is needed as a training target. Regenerating series would be avoidable friction.
 
 ### Parameter Transformations
 Apply transformations so the network always outputs unconstrained values; transform back at inference time:
-- `φ ∈ (−1, 1)` — apply **logit** transformation
+- `φ ∈ (0, 1)` — apply **logit** transformation
 - `σ_η > 0` — apply **log** transformation
 - `ρ ∈ (−1, 1)` — apply **arctanh** transformation (not logit — logit requires input in (0,1) but ρ can be negative); inverse is tanh; training range `(−0.95, 0.5)` — covers all realistic asset classes (equities: −0.7 to −0.3, FX: near 0, commodities: up to +0.2) without including near-singular extremes that are economically implausible
 
@@ -152,7 +197,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 ### Language / Stack
 - **Python with PyTorch** (confirmed — not TensorFlow)
 - NumPy / SciPy for simulation
-- MCMC benchmark: **PyMC** (pure Python, NUTS sampler) — cite Kim et al. (1998) and Kastner & Frühwirth-Schnatter (2014) as methodological references, PyMC as the implementation tool
+- MCMC benchmark: **PyMC** (pure Python, NUTS sampler) — **do not cite Kim et al. (1998) or Kastner & Frühwirth-Schnatter (2014) as the implementation basis** (see citation mismatch note in constraints); cite NUTS/PyMC directly and frame as a general-purpose HMC baseline
 - Data storage: NumPy `.npz` files
 
 ---
@@ -211,6 +256,9 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 - **Citation accuracy:** Citations added in recent revisions have not all been manually verified. Must verify before final submission.
 - **Parameter identifiability:** Different parameter combinations can produce similar return dynamics. This affects both neural and classical methods and should be acknowledged in the thesis.
 - **Metric choice:** MSE alone is insufficient. The metric must account for the fact that small parameter errors can have large likelihood impacts.
+- **MCMC citation mismatch — discuss with supervisor:** Kim et al. (1998) and Kastner & Frühwirth-Schnatter (2014) describe specialised SV samplers (mixture-of-normals approximation, ASIS interweaving) that exploit SV model structure. The implementation uses NUTS, a general-purpose HMC sampler that samples the full T-dimensional latent path jointly. NUTS likely has worse mixing than the specialised algorithms for this model — the borderline R-hat values are evidence of this. The thesis must either: (a) reframe NUTS as "modern general-purpose MCMC baseline" and cite it as such, or (b) implement a specialised sampler (e.g. stochvol R package). Supervisor input required before writing the results chapter.
+- **Validation set required for NN:** The current dataset plan has train (100k) and test (200). Architecture selection and hyperparameter tuning must use a separate validation set, not the test set. Split training data: 90k train / 10k validation. The 200-series test set is only used once, for final reporting. This must be incorporated before generating datasets.
+- **MCMC T=2000 piloted and resolved:** 2000 tune steps required (1000 was insufficient — R-hat up to 1.56, 298 divergences). Full batch should use `MCMCConfig(draws=1000, tune=2000, target_accept=0.9)`. Series in the low-φ region (φ ≈ 0.5) remain hard to identify even with 2000 tune — posterior means can be off by ~0.08 on φ. This is a fundamental NUTS limitation, not a tuning issue; acknowledge in results chapter.
 
 ---
 
@@ -218,9 +266,45 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 
 - Part I theoretical draft: **COMPLETE** — all supervisor revisions incorporated
 - Part I citations: need manual verification against source papers
-- Supervisor meeting: completed, all notes incorporated
-- Implementation: **NOT YET STARTED** — currently in specification/planning phase
-- Repository: created, environment set up (Python + PyTorch via uv)
+- Simulators: **COMPLETE** — base SV and SV-with-leverage, 71 tests passing
+- Datasets: **COMPLETE** — all 9 datasets generated (train/val/test × T=500/1000/2000), test set nested from T=2000 slice
+- MCMC benchmark: **COMPLETE** — run on all 3 test sets (T=500/1000/2000), results in results/mcmc_T*/
+
+### Neural Network — Simulation Study COMPLETE
+
+Five architectures (MLP, CNN, LSTM, TCN, Transformer) implemented. Random hparam search done for all 5 at T=1000 (log: experiments/hparam_log_T1000.jsonl). T=1000 best configs reused for T=500 and T=2000 retraining (justified: isolates effect of series length). LSTM skipped entirely — computationally infeasible (~1hr/epoch on MPS). Transformer T=2000 skipped — OOM even at batch_size=8. Full sample comparison saved in experiments/sample_size_comparison.json.
+
+**Architecture comparison — T=1000 test set (N=200):**
+
+| Architecture | Params | μ RMSE | φ RMSE | σ_η RMSE |
+|---|---|---|---|---|
+| TCN | 88,771 | 0.2787 | 0.0811 | 0.0821 |
+| Transformer | 406,147 | 0.2819 | 0.0806 | 0.0819 |
+| MLP | 267,779 | 0.2801 | 0.0859 | 0.0909 |
+| CNN | 790,019 | 0.2916 | 0.0891 | 0.0882 |
+| MCMC (NUTS) | N/A | 0.2968 | 0.0812 | 0.0722 |
+
+**Sample size analysis — TCN vs Transformer vs MCMC (test set N=200):**
+
+| Method | T=500 μ | T=500 φ | T=500 σ | T=1000 μ | T=1000 φ | T=1000 σ | T=2000 μ | T=2000 φ | T=2000 σ |
+|---|---|---|---|---|---|---|---|---|---|
+| TCN | 0.362 | 0.091 | 0.100 | 0.279 | 0.081 | 0.082 | 0.201 | 0.075 | 0.074 |
+| Transformer | 0.354 | 0.096 | 0.099 | 0.282 | 0.081 | 0.082 | — | — | — |
+| MCMC | 0.370 | 0.091 | 0.089 | 0.297 | 0.081 | 0.072 | 0.199 | 0.073 | 0.055 |
+
+**Key findings:**
+- NNs match or beat MCMC on μ and φ at T=500 and T=1000. MCMC consistently wins on σ_η.
+- At T=2000, TCN and MCMC are essentially tied on μ and φ; MCMC pulls ahead on σ_η.
+- All methods improve with longer T — errors decrease monotonically.
+- TCN is the best NN: lightest (88k params), fastest, competitive across all T.
+- LSTM and Transformer are computationally infeasible at scale on laptop (MPS memory/speed limits).
+
+### Pending
+
+- **Misspecification analysis** — core thesis contribution. Generate leverage model test data (SV-with-leverage simulator already implemented), apply base-SV-trained TCN and MCMC to it, measure degradation vs correctly-specified case. Run at T=1000.
+- **Real data application** — apply TCN (best architecture) to real financial returns, compare vs MCMC.
+
+*Last updated: 2026-05-11 — simulation study complete across all T values*
 
 ---
 

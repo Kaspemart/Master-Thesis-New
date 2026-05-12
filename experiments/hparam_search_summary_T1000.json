@@ -1,0 +1,500 @@
+{
+  "mlp": {
+    "n_trials": 20,
+    "best_val_loss": 0.19077059626579285,
+    "best_run_id": "mlp_bbbd9a26",
+    "best_hparams": {
+      "hidden_dim": 256,
+      "n_layers": 5,
+      "dropout": 0.0,
+      "lr": 0.003,
+      "batch_size": 256
+    },
+    "best_n_params": 267779,
+    "proxy_notes": "proxy_n=10000, proxy_epochs=30, full T=1000",
+    "all_trials": [
+      {
+        "arch": "mlp",
+        "T": 1000,
+        "run_id": "mlp_bbbd9a26",
+        "hparams": {
+          "hidden_dim": 256,
+          "n_layers": 5,
+          "dropout": 0.0,
+          "lr": 0.003,
+          "batch_size": 256
+        },
+        "val_loss": 0.19077059626579285,
+        "best_epoch": 29,
+        "train_time_s": 85.86130094528198,
+        "n_params": 267779
+      },
+      {
+        "arch": "mlp",
+        "T": 1000,
+        "run_id": "mlp_bc657384",
+        "hparams": {
+          "hidden_dim": 512,
+          "n_layers": 5,
+          "dropout": 0.0,
+          "lr": 0.001,
+          "batch_size": 512
+        },
+        "val_loss": 0.19596813869476318,
+        "best_epoch": 30,
+        "train_time_s": 37.08055305480957,
+        "n_params": 1059843
+      },
+      {
+        "arch": "mlp",
+        "T": 1000,
+        "run_id": "mlp_24a4d398",
+        "hparams": {
+          "hidden_dim": 512,
+          "n_layers": 4,
+          "dropout": 0.05,
+          "lr": 0.001,
+          "batch_size": 512
+        },
+        "val_loss": 0.19908332583904267,
+        "best_epoch": 27,
+        "train_time_s": 62.93967413902283,
+        "n_params": 797187
+      },
+      {
+        "arch": "mlp",
+        "T": 1000,
+        "run_id": "mlp_4f487fa2",
+        "hparams": {
+          "hidden_dim": 512,
+          "n_layers": 2,
+          "dropout": 0.1,
+          "lr": 0.001,
+          "batch_size": 512
+        },
+        "val_loss": 0.20295968761444091,
+        "best_epoch": 27,
+        "train_time_s": 51.2159469127655,
+        "n_params": 271875
+      },
+      {
+        "arch": "mlp",
+        "T": 1000,
+        "run_id": "mlp_5daafde6",
+        "hparams": {
+          "hidden_dim": 512,
+          "n_layers": 4,
+          "dropout": 0.2,
+          "lr": 0.003,
+          "batch_size": 512
+        },
+        "val_loss": 0.20608329141139983,
+        "best_epoch": 22,
+        "train_time_s": 71.00686836242676,
+        "n_params": 797187
+      }
+    ]
+  },
+  "cnn": {
+    "n_trials": 20,
+    "best_val_loss": 0.39988651947975157,
+    "best_run_id": "cnn_7c809b07",
+    "best_hparams": {
+      "hidden_dim": 512,
+      "n_blocks": 2,
+      "dropout": 0.1,
+      "lr": 0.001,
+      "batch_size": 512
+    },
+    "best_n_params": 790019,
+    "proxy_notes": "proxy_n=10000, proxy_epochs=30, full T=1000",
+    "all_trials": [
+      {
+        "arch": "cnn",
+        "T": 1000,
+        "run_id": "cnn_7c809b07",
+        "hparams": {
+          "hidden_dim": 512,
+          "n_blocks": 2,
+          "dropout": 0.1,
+          "lr": 0.001,
+          "batch_size": 512
+        },
+        "val_loss": 0.39988651947975157,
+        "best_epoch": 30,
+        "train_time_s": 484.5947530269623,
+        "n_params": 790019
+      },
+      {
+        "arch": "cnn",
+        "T": 1000,
+        "run_id": "cnn_eb996e5b",
+        "hparams": {
+          "hidden_dim": 512,
+          "n_blocks": 4,
+          "dropout": 0.05,
+          "lr": 0.001,
+          "batch_size": 512
+        },
+        "val_loss": 0.40164209561347963,
+        "best_epoch": 30,
+        "train_time_s": 457.68186807632446,
+        "n_params": 707459
+      },
+      {
+        "arch": "cnn",
+        "T": 1000,
+        "run_id": "cnn_61883555",
+        "hparams": {
+          "hidden_dim": 512,
+          "n_blocks": 6,
+          "dropout": 0.0,
+          "lr": 0.001,
+          "batch_size": 512
+        },
+        "val_loss": 0.4180288001060486,
+        "best_epoch": 29,
+        "train_time_s": 3116.1760909557343,
+        "n_params": 806019
+      },
+      {
+        "arch": "cnn",
+        "T": 1000,
+        "run_id": "cnn_1b2fb796",
+        "hparams": {
+          "hidden_dim": 256,
+          "n_blocks": 6,
+          "dropout": 0.0,
+          "lr": 0.003,
+          "batch_size": 256
+        },
+        "val_loss": 0.42516498427391053,
+        "best_epoch": 27,
+        "train_time_s": 136.65146589279175,
+        "n_params": 202307
+      },
+      {
+        "arch": "cnn",
+        "T": 1000,
+        "run_id": "cnn_deed75cd",
+        "hparams": {
+          "hidden_dim": 128,
+          "n_blocks": 4,
+          "dropout": 0.05,
+          "lr": 0.0003,
+          "batch_size": 128
+        },
+        "val_loss": 0.43726260056495664,
+        "best_epoch": 30,
+        "train_time_s": 57.24399399757385,
+        "n_params": 44771
+      }
+    ]
+  },
+  "lstm": {
+    "n_trials": 9,
+    "best_val_loss": 0.7697064496994018,
+    "best_run_id": "lstm_14fde73c",
+    "best_hparams": {
+      "hidden_dim": 256,
+      "num_layers": 3,
+      "dropout": 0.0,
+      "lr": 0.001,
+      "batch_size": 256
+    },
+    "best_n_params": 1334531,
+    "proxy_notes": "proxy_n=2000,  proxy_epochs=20, proxy_T=200 (val_loss not comparable to mlp/cnn)",
+    "all_trials": [
+      {
+        "arch": "lstm",
+        "T": 1000,
+        "run_id": "lstm_14fde73c",
+        "hparams": {
+          "hidden_dim": 256,
+          "num_layers": 3,
+          "dropout": 0.0,
+          "lr": 0.001,
+          "batch_size": 256
+        },
+        "val_loss": 0.7697064496994018,
+        "best_epoch": 20,
+        "train_time_s": 59.599698305130005,
+        "n_params": 1334531
+      },
+      {
+        "arch": "lstm",
+        "T": 1000,
+        "run_id": "lstm_82738509",
+        "hparams": {
+          "hidden_dim": 256,
+          "num_layers": 1,
+          "dropout": 0.1,
+          "lr": 0.0003,
+          "batch_size": 256
+        },
+        "val_loss": 0.8032257664680481,
+        "best_epoch": 18,
+        "train_time_s": 56.895041942596436,
+        "n_params": 281859
+      },
+      {
+        "arch": "lstm",
+        "T": 1000,
+        "run_id": "lstm_c9ec6d81",
+        "hparams": {
+          "hidden_dim": 256,
+          "num_layers": 1,
+          "dropout": 0.2,
+          "lr": 0.0003,
+          "batch_size": 256
+        },
+        "val_loss": 0.8231841241836548,
+        "best_epoch": 18,
+        "train_time_s": 56.9835479259491,
+        "n_params": 281859
+      },
+      {
+        "arch": "lstm",
+        "T": 1000,
+        "run_id": "lstm_88a777d1",
+        "hparams": {
+          "hidden_dim": 256,
+          "num_layers": 1,
+          "dropout": 0.2,
+          "lr": 0.0001,
+          "batch_size": 256
+        },
+        "val_loss": 1.4405248823165893,
+        "best_epoch": 20,
+        "train_time_s": 82.28452491760254,
+        "n_params": 281859
+      },
+      {
+        "arch": "lstm",
+        "T": 1000,
+        "run_id": "lstm_58ba6a1c",
+        "hparams": {
+          "hidden_dim": 128,
+          "num_layers": 2,
+          "dropout": 0.0,
+          "lr": 0.0003,
+          "batch_size": 512
+        },
+        "val_loss": 3.3602108047485353,
+        "best_epoch": 20,
+        "train_time_s": 69.90804028511047,
+        "n_params": 207619
+      }
+    ]
+  },
+  "tcn": {
+    "n_trials": 20,
+    "best_val_loss": 0.5792646607398987,
+    "best_run_id": "tcn_f9e797b5",
+    "best_hparams": {
+      "n_channels": 32,
+      "kernel_size": 7,
+      "n_blocks": 6,
+      "dropout": 0.0,
+      "lr": 0.0003,
+      "batch_size": 256
+    },
+    "best_n_params": 88771,
+    "proxy_notes": "proxy_n=2000,  proxy_epochs=20, full T=1000",
+    "all_trials": [
+      {
+        "arch": "tcn",
+        "T": 1000,
+        "run_id": "tcn_f9e797b5",
+        "hparams": {
+          "n_channels": 32,
+          "kernel_size": 7,
+          "n_blocks": 6,
+          "dropout": 0.0,
+          "lr": 0.0003,
+          "batch_size": 256
+        },
+        "val_loss": 0.5792646607398987,
+        "best_epoch": 20,
+        "train_time_s": 37.99622082710266,
+        "n_params": 88771
+      },
+      {
+        "arch": "tcn",
+        "T": 1000,
+        "run_id": "tcn_ee847a18",
+        "hparams": {
+          "n_channels": 32,
+          "kernel_size": 7,
+          "n_blocks": 4,
+          "dropout": 0.1,
+          "lr": 0.003,
+          "batch_size": 256
+        },
+        "val_loss": 0.5850567918777466,
+        "best_epoch": 20,
+        "train_time_s": 26.06022310256958,
+        "n_params": 59971
+      },
+      {
+        "arch": "tcn",
+        "T": 1000,
+        "run_id": "tcn_1e34bfd6",
+        "hparams": {
+          "n_channels": 128,
+          "kernel_size": 3,
+          "n_blocks": 6,
+          "dropout": 0.1,
+          "lr": 0.0003,
+          "batch_size": 256
+        },
+        "val_loss": 0.5897608649253845,
+        "best_epoch": 20,
+        "train_time_s": 944.2479388713837,
+        "n_params": 600067
+      },
+      {
+        "arch": "tcn",
+        "T": 1000,
+        "run_id": "tcn_fc0c2cfb",
+        "hparams": {
+          "n_channels": 64,
+          "kernel_size": 7,
+          "n_blocks": 6,
+          "dropout": 0.0,
+          "lr": 0.001,
+          "batch_size": 512
+        },
+        "val_loss": 0.596990076828003,
+        "best_epoch": 19,
+        "train_time_s": 99.12452292442322,
+        "n_params": 349315
+      },
+      {
+        "arch": "tcn",
+        "T": 1000,
+        "run_id": "tcn_eebc86cc",
+        "hparams": {
+          "n_channels": 64,
+          "kernel_size": 5,
+          "n_blocks": 4,
+          "dropout": 0.1,
+          "lr": 0.003,
+          "batch_size": 512
+        },
+        "val_loss": 0.6114529898643494,
+        "best_epoch": 19,
+        "train_time_s": 57.44267392158508,
+        "n_params": 168835
+      }
+    ]
+  },
+  "transformer": {
+    "n_trials": 15,
+    "best_val_loss": 0.5299599809646607,
+    "best_run_id": "transformer_b15fdb0b",
+    "best_hparams": {
+      "d_model": 128,
+      "n_heads": 8,
+      "n_layers": 3,
+      "d_ff": 256,
+      "dropout": 0.0,
+      "lr": 0.001,
+      "batch_size": 128
+    },
+    "best_n_params": 406147,
+    "proxy_notes": "proxy_n=2000, proxy_epochs=20, proxy_T=200 (val_loss not comparable to mlp/cnn)",
+    "all_trials": [
+      {
+        "arch": "transformer",
+        "T": 1000,
+        "run_id": "transformer_b15fdb0b",
+        "hparams": {
+          "d_model": 128,
+          "n_heads": 8,
+          "n_layers": 3,
+          "d_ff": 256,
+          "dropout": 0.0,
+          "lr": 0.001,
+          "batch_size": 128
+        },
+        "val_loss": 0.5299599809646607,
+        "best_epoch": 19,
+        "train_time_s": 86.65076875686646,
+        "n_params": 406147
+      },
+      {
+        "arch": "transformer",
+        "T": 1000,
+        "run_id": "transformer_2bee177f",
+        "hparams": {
+          "d_model": 64,
+          "n_heads": 2,
+          "n_layers": 2,
+          "d_ff": 512,
+          "dropout": 0.1,
+          "lr": 0.001,
+          "batch_size": 128
+        },
+        "val_loss": 0.5345255247592926,
+        "best_epoch": 17,
+        "train_time_s": 29.21951699256897,
+        "n_params": 170499
+      },
+      {
+        "arch": "transformer",
+        "T": 1000,
+        "run_id": "transformer_ea27e683",
+        "hparams": {
+          "d_model": 32,
+          "n_heads": 8,
+          "n_layers": 6,
+          "d_ff": 256,
+          "dropout": 0.05,
+          "lr": 0.001,
+          "batch_size": 256
+        },
+        "val_loss": 0.5365727754592895,
+        "best_epoch": 17,
+        "train_time_s": 259.7246890068054,
+        "n_params": 128515
+      },
+      {
+        "arch": "transformer",
+        "T": 1000,
+        "run_id": "transformer_545f7d95",
+        "hparams": {
+          "d_model": 256,
+          "n_heads": 4,
+          "n_layers": 3,
+          "d_ff": 256,
+          "dropout": 0.05,
+          "lr": 0.0001,
+          "batch_size": 128
+        },
+        "val_loss": 0.5401824604988098,
+        "best_epoch": 20,
+        "train_time_s": 116.86055207252502,
+        "n_params": 1204483
+      },
+      {
+        "arch": "transformer",
+        "T": 1000,
+        "run_id": "transformer_ef5a8a77",
+        "hparams": {
+          "d_model": 32,
+          "n_heads": 2,
+          "n_layers": 3,
+          "d_ff": 128,
+          "dropout": 0.05,
+          "lr": 0.001,
+          "batch_size": 256
+        },
+        "val_loss": 0.5404784720420838,
+        "best_epoch": 20,
+        "train_time_s": 30.709476947784424,
+        "n_params": 40483
+      }
+    ]
+  }
+}
