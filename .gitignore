@@ -17,6 +17,9 @@ data/generated/*.npz
 # Results — per-series MCMC checkpoints redundant with results.npz, exclude to keep repo small
 results/*/checkpoints/series_*.npz
 
+# Model checkpoints — binary weights, regenerate via scripts/train_best_configs.py
+checkpoints/
+
 # Jupyter
 .ipynb_checkpoints/
 
@@ -26,3 +29,6 @@ results/*/checkpoints/series_*.npz
 # IDE
 .vscode/
 .idea/
+
+# Claude Code tooling artifacts
+.claude/
