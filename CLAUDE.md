@@ -93,34 +93,38 @@ Key nuance: a small error in a parameter like `φ` (volatility persistence) may 
 
 ## Classical Benchmark
 
-**Bayesian MCMC is the confirmed benchmark.** It builds on two key references:
-- **Kim, Shephard & Chib (1998)** — mixture of normals approximation within MCMC framework
-- **Kastner & Frühwirth-Schnatter (2014)** — ASIS interweaving strategy for improved sampling efficiency
+**Bayesian MCMC is the confirmed benchmark**, implemented via the **stochvol R package** (v3.2.9), which implements the ASIS (ancillarity-sufficiency interweaving) sampler from Kastner & Frühwirth-Schnatter (2014). Citations to Kim, Shephard & Chib (1998) are historical context only — stochvol does NOT use the mixture-of-normals approximation.
 
-Implementation: **PyMC** (Python, NUTS sampler). Priors set to Uniform matching the simulation training ranges — ensures a fair comparison where both NN and MCMC operate with the same information about parameter space.
+A PyMC NUTS implementation also exists (`src/estimation/mcmc_runner.py`) and results are in `results/mcmc_T*/` for comparison, but stochvol is the primary benchmark cited in the thesis.
 
 **Evaluation setup:**
-- MCMC is run on a held-out test set of **200 series per T value** (T=500, T=1,000, T=2,000), never seen during NN training
-- Parallelised across 4 CPU cores (~15 min wall time per T-value — verified by pilot run)
-- T=500, T=1000: 1,000 draws + 1,000 tuning steps, target_accept=0.9
-- T=2000: 1,000 draws + **2,000 tuning steps**, target_accept=0.9 — piloted and confirmed; 1,000 tune at T=2000 produced R-hat up to 1.56 and 298 divergences on one series; 2,000 tune reduced max R-hat to 1.17 with no divergences
-- Results checkpointed after each series — crash-safe
-- Output per series: posterior mean, posterior SD, full samples (1,000 draws × 3 params), R-hat diagnostics
+- Run on a held-out test set of **200 series per T value** (T=500, T=1,000, T=2,000), never seen during NN training
+- Parallelised across 4 CPU cores via joblib multiprocessing
+- All T: 1,000 draws + 1,000 burn-in iterations (stochvol mixes faster than NUTS for SV models)
+- Two independent chains per series for Gelman-Rubin R-hat; summaries from chain 1
+- Results checkpointed per series — crash-safe; batch assembles final `results.npz`
+- Output per series: posterior mean, posterior SD, full samples (1,000 draws × 3 params), R-hat
 
-**MCMC model implementation note (methodology chapter):**
-- PyMC model uses **centered parameterisation**: fit `v_t = φ·v_{t-1} + σ_η·η_t` (AR(1) centred at 0), then `h_t = μ + v_t`
-- Scalar `rho=φ` passed to `pm.AR` — ensures AR(1), not AR(2); this distinction matters because `rho=[a, b]` with `constant=False` in PyMC 5 specifies AR(2), not AR(1) with intercept
-- Mathematically equivalent to `h_t = μ + φ(h_{t-1} − μ) + σ_η·η_t`
-- Must be described precisely in the methodology — the centred form should be stated explicitly
+**Prior specification (stochvol cannot use Uniform priors):**
+- μ ~ Normal(−5, 3) — covers μ ∈ (−10, 0), P ≈ 0.90
+- φ ~ Beta(7, 1) on (φ+1)/2 — mean φ = 0.75 = simulation midpoint; P(φ > 0.5) = 0.87
+  - Beta(5, 1.5) default rejected: mean φ ≈ 0.54 caused −0.086 φ bias at T=500
+  - sv_normal rejected: caused R-hat up to 3.28 (ASIS sampler requires Beta prior for φ)
+- σ_η ~ √(Gamma(0.5, 0.5)) — covers σ_η ∈ (0.05, 1.0), P ≈ 0.64
+- **Methodology note:** state these as "weakly informative, broadly consistent with simulation ranges"
 
-**R-hat behavior for SV models (acknowledge honestly in results chapter):**
-- NUTS exhibited convergence difficulties on some series, particularly for sigma_eta (R-hat up to 1.71 on hard series, typically 1.05–1.12 in the pilot)
-- This is a limitation of using a general-purpose sampler on a high-dimensional latent variable model — NOT "expected and fine"
-- Parameter posterior means appear accurate despite borderline R-hat (verified on pilot series), but this is not guaranteed and should be stated carefully
-- Report all R-hat values; series with R-hat > 1.1 should be flagged as potentially unreliable in the results
-- This reinforces why the MCMC benchmark framing matters: NUTS may underperform relative to specialised SV samplers (see citation note above)
+**stochvol implementation note (methodology chapter):**
+- Called via subprocess: Python writes returns to temp CSV → Rscript → reads JSON result
+- R script (`src/estimation/stochvol_runner.R`) runs 2 chains for R-hat computation
+- Python wrapper (`src/estimation/stochvol_runner.py`) returns same `MCMCResult` dataclass as NUTS runner — backend-agnostic downstream scripts
 
-**Important limitation (acknowledge in results chapter):** Uniform priors matched to simulation ranges give MCMC slightly idealised conditions — in a real application, a researcher would not know the true parameter ranges in advance. This means the thesis results are conservative about the NN's relative advantage.
+**R-hat behavior for stochvol (acknowledge honestly in results chapter):**
+- μ: essentially no convergence problems (mean R-hat ≈ 1.004, frac > 1.1 = 0% at all T)
+- φ: some convergence issues on hard series (frac > 1.1 = 8%/11%/14% at T=500/1000/2000); persists with longer T
+- σ_η: moderate issues (frac > 1.1 = 5.5%/6%/9.5% at T=500/1000/2000)
+- φ R-hat issues are concentrated in low-φ series (φ ≈ 0.5) where the Beta(7,1) prior conflicts with data and series are harder to identify — a fundamental stochvol limitation to acknowledge
+
+**Important prior-induced limitation (acknowledge in results chapter):** stochvol cannot use Uniform priors. The Beta(7,1) prior pulls φ estimates toward 0.75; this causes systematic φ RMSE inflation relative to NUTS (which used Uniform priors). This is a structural disadvantage for stochvol that must be stated. The NUTS results (Uniform priors, idealised conditions) serve as a useful upper-bound comparison — in a real application, neither method would know the true parameter ranges.
 
 ---
 
@@ -197,7 +201,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 ### Language / Stack
 - **Python with PyTorch** (confirmed — not TensorFlow)
 - NumPy / SciPy for simulation
-- MCMC benchmark: **PyMC** (pure Python, NUTS sampler) — **do not cite Kim et al. (1998) or Kastner & Frühwirth-Schnatter (2014) as the implementation basis** (see citation mismatch note in constraints); cite NUTS/PyMC directly and frame as a general-purpose HMC baseline
+- MCMC benchmark: **stochvol R package** (v3.2.9, ASIS sampler) called via subprocess from Python — cite Kastner & Frühwirth-Schnatter (2014) as the implementation basis; Kim et al. (1998) as historical context only. NUTS (PyMC) preserved in `mcmc_runner.py` for reference.
 - Data storage: NumPy `.npz` files
 
 ---
@@ -241,7 +245,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 4. **Whether to estimate parameters only or parameters and latent states jointly** — affects architecture choice
 
 **Resolved decisions (no longer open):**
-- Benchmark method: **MCMC confirmed** — implemented via **PyMC** (Python, NUTS sampler); Kim et al. (1998) and Kastner & Frühwirth-Schnatter (2014) cited as methodological references
+- Benchmark method: **stochvol R package (ASIS sampler)** — Kastner & Frühwirth-Schnatter (2014) is the primary citation; NUTS (PyMC) preserved for reference but is NOT the primary benchmark
 - Model variants to implement: **base SV and SV with leverage** — all others are misspecification scenarios only
 - Training dataset size: **≥ 100,000 series**
 - Series lengths to test: **T = 500, 1,000, 2,000**
@@ -256,7 +260,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 - **Citation accuracy:** Citations added in recent revisions have not all been manually verified. Must verify before final submission.
 - **Parameter identifiability:** Different parameter combinations can produce similar return dynamics. This affects both neural and classical methods and should be acknowledged in the thesis.
 - **Metric choice:** MSE alone is insufficient. The metric must account for the fact that small parameter errors can have large likelihood impacts.
-- **MCMC citation mismatch — discuss with supervisor:** Kim et al. (1998) and Kastner & Frühwirth-Schnatter (2014) describe specialised SV samplers (mixture-of-normals approximation, ASIS interweaving) that exploit SV model structure. The implementation uses NUTS, a general-purpose HMC sampler that samples the full T-dimensional latent path jointly. NUTS likely has worse mixing than the specialised algorithms for this model — the borderline R-hat values are evidence of this. The thesis must either: (a) reframe NUTS as "modern general-purpose MCMC baseline" and cite it as such, or (b) implement a specialised sampler (e.g. stochvol R package). Supervisor input required before writing the results chapter.
+- **MCMC citation mismatch — RESOLVED:** Switched from NUTS (PyMC) to stochvol R package (ASIS sampler). Kastner & Frühwirth-Schnatter (2014) is now accurately cited as the implementation basis. Kim et al. (1998) cited as historical context only. See `memory/project_benchmark_switch.md` for full rationale.
 - **Validation set required for NN:** The current dataset plan has train (100k) and test (200). Architecture selection and hyperparameter tuning must use a separate validation set, not the test set. Split training data: 90k train / 10k validation. The 200-series test set is only used once, for final reporting. This must be incorporated before generating datasets.
 - **MCMC T=2000 piloted and resolved:** 2000 tune steps required (1000 was insufficient — R-hat up to 1.56, 298 divergences). Full batch should use `MCMCConfig(draws=1000, tune=2000, target_accept=0.9)`. Series in the low-φ region (φ ≈ 0.5) remain hard to identify even with 2000 tune — posterior means can be off by ~0.08 on φ. This is a fundamental NUTS limitation, not a tuning issue; acknowledge in results chapter.
 
@@ -268,7 +272,8 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 - Part I citations: need manual verification against source papers
 - Simulators: **COMPLETE** — base SV and SV-with-leverage, 71 tests passing
 - Datasets: **COMPLETE** — all 9 datasets generated (train/val/test × T=500/1000/2000), test set nested from T=2000 slice
-- MCMC benchmark: **COMPLETE** — run on all 3 test sets (T=500/1000/2000), results in results/mcmc_T*/
+- MCMC benchmark (NUTS/PyMC): **COMPLETE** — run on all 3 test sets, results in `results/mcmc_T*/` (preserved for reference; NOT the primary benchmark)
+- stochvol benchmark (ASIS/KFS2014): **COMPLETE** — run on all 3 test sets, results in `results/stochvol_T*/` (primary benchmark)
 
 ### Neural Network — Simulation Study COMPLETE
 
@@ -282,29 +287,38 @@ Five architectures (MLP, CNN, LSTM, TCN, Transformer) implemented. Random hparam
 | Transformer | 406,147 | 0.2819 | 0.0806 | 0.0819 |
 | MLP | 267,779 | 0.2801 | 0.0859 | 0.0909 |
 | CNN | 790,019 | 0.2916 | 0.0891 | 0.0882 |
-| MCMC (NUTS) | N/A | 0.2968 | 0.0812 | 0.0722 |
+| stochvol (ASIS) ★ | N/A | 0.2810 | 0.1074 | 0.0800 |
+| NUTS (PyMC) | N/A | 0.2968 | 0.0812 | 0.0722 |
 
-**Sample size analysis — TCN vs Transformer vs MCMC (test set N=200):**
+★ primary benchmark. Note: stochvol φ RMSE is inflated relative to NUTS because stochvol cannot use Uniform priors — Beta(7,1) prior pulls φ toward 0.75 even when true φ is lower.
+
+**Sample size analysis — TCN vs Transformer vs stochvol vs NUTS (test set N=200):**
 
 | Method | T=500 μ | T=500 φ | T=500 σ | T=1000 μ | T=1000 φ | T=1000 σ | T=2000 μ | T=2000 φ | T=2000 σ |
 |---|---|---|---|---|---|---|---|---|---|
 | TCN | 0.362 | 0.091 | 0.100 | 0.279 | 0.081 | 0.082 | 0.201 | 0.075 | 0.074 |
 | Transformer | 0.354 | 0.096 | 0.099 | 0.282 | 0.081 | 0.082 | — | — | — |
-| MCMC | 0.370 | 0.091 | 0.089 | 0.297 | 0.081 | 0.072 | 0.199 | 0.073 | 0.055 |
+| stochvol ★ | 0.354 | 0.109 | 0.101 | 0.281 | 0.107 | 0.080 | 0.189 | 0.100 | 0.057 |
+| NUTS | 0.370 | 0.091 | 0.089 | 0.297 | 0.081 | 0.072 | 0.199 | 0.073 | 0.055 |
+
+★ primary benchmark. NUTS shown for reference (Uniform priors = idealised conditions).
 
 **Key findings:**
-- NNs match or beat MCMC on μ and φ at T=500 and T=1000. MCMC consistently wins on σ_η.
-- At T=2000, TCN and MCMC are essentially tied on μ and φ; MCMC pulls ahead on σ_η.
+- TCN matches or beats stochvol on μ at T=500 and T=1000; stochvol wins at T=2000.
+- stochvol beats NUTS on μ at all T (ASIS mixes better for μ).
+- NUTS consistently beats stochvol on φ and σ_η — stochvol's Beta(7,1) prior inflates φ RMSE.
+- MCMC (both flavours) consistently wins on σ_η vs all NNs.
 - All methods improve with longer T — errors decrease monotonically.
 - TCN is the best NN: lightest (88k params), fastest, competitive across all T.
 - LSTM and Transformer are computationally infeasible at scale on laptop (MPS memory/speed limits).
+- **For the thesis:** the "NNs match MCMC on φ" finding is nuanced — NNs beat stochvol (Beta prior) on φ but not NUTS (Uniform prior). This is honest context to include.
 
 ### Pending
 
 - **Misspecification analysis** — core thesis contribution. Generate leverage model test data (SV-with-leverage simulator already implemented), apply base-SV-trained TCN and MCMC to it, measure degradation vs correctly-specified case. Run at T=1000.
 - **Real data application** — apply TCN (best architecture) to real financial returns, compare vs MCMC.
 
-*Last updated: 2026-05-11 — simulation study complete across all T values*
+*Last updated: 2026-05-12 — stochvol benchmark complete; primary benchmark switched from NUTS to stochvol (ASIS)*
 
 ---
 
@@ -319,4 +333,4 @@ Five architectures (MLP, CNN, LSTM, TCN, Transformer) implemented. Random hparam
 
 ---
 
-*Last updated: 2026-04-19 — research contribution clarified, model variants finalised, benchmark confirmed, series lengths specified*
+*Last updated: 2026-05-12 — stochvol benchmark complete; NUTS preserved for reference*
