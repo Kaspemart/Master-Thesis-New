@@ -23,12 +23,14 @@
 #   rhat       — Gelman-Rubin R-hat [mu, phi, sigma_eta], computed across 2 chains
 #   samples    — posterior draws from chain 1, shape (draws, 3): [[mu,phi,sigma_eta],...]
 #
-# Priors (weakly informative, consistent with simulation ranges):
-#   mu        ~ Normal(-5, 3)              covers mu in (-10, 0)       [P ~ 0.90]
-#   phi       ~ Beta(5, 1.5) on (phi+1)/2  concentrates mass near 1    [P(phi>0.5) ~ 0.61]
-#   sigma_eta ~ sqrt(Gamma(0.5, 0.5))      covers sigma_eta in (0.05,1) [P ~ 0.64]
+# Priors (weakly informative, centred on simulation parameter ranges):
+#   mu        ~ Normal(-5, 3)              covers mu in (-10, 0), P ~ 0.90
+#   phi       ~ Beta(7, 1) on (phi+1)/2   mean phi = 0.75 = simulation midpoint; P(phi>0.5)=0.87
+#                                          Beta(5,1.5) default rejected: mean phi≈0.54 → -0.086 bias
+#                                          sv_normal rejected: severe ASIS mixing failures (rhat>3)
+#   sigma_eta ~ sqrt(Gamma(0.5, 0.5))     covers sigma_eta in (0.05, 1.0), P ~ 0.64
 # These cannot be made exactly Uniform (stochvol does not support Uniform priors), but
-# are wide enough that the prior has minimal influence on the posterior for T >= 500.
+# are weakly informative enough that the prior has minimal influence on the posterior for T >= 500.
 
 suppressPackageStartupMessages({
   library(stochvol)
@@ -52,9 +54,17 @@ y <- read.csv(input_csv, header = FALSE)[[1]]
 if (any(!is.finite(y))) stop("Non-finite values found in input returns.")
 
 # ── Prior specification ───────────────────────────────────────────────────────
+# mu     ~ Normal(-5, 3)               — covers mu in (-10, 0), P ~ 0.90
+# phi    ~ Beta(7, 1) on (phi+1)/2    — mean phi = 2*(7/8)-1 = 0.75, matching simulation
+#                                        midpoint; P(phi>0.5) = 0.87. Default Beta(5,1.5)
+#                                        was rejected: its mean phi≈0.54 caused a -0.086
+#                                        bias at T=500. sv_normal was rejected: it caused
+#                                        severe mixing failures (R-hat up to 3.28) because
+#                                        the ASIS sampler is designed for the Beta prior.
+# sigma2 ~ Gamma(0.5, 0.5)             — covers sigma_eta in (0.05, 1.0), P ~ 0.64
 priors <- specify_priors(
   mu     = sv_normal(mean = -5.0, sd = 3.0),
-  phi    = sv_beta(shape1 = 5, shape2 = 1.5),
+  phi    = sv_beta(shape1 = 7, shape2 = 1),
   sigma2 = sv_gamma(shape = 0.5, rate = 0.5)
 )
 

@@ -211,19 +211,16 @@ def run_stochvol_batch(
             len(pending), N, config.n_jobs,
         )
 
-        def _run_one(i: int) -> tuple[int, MCMCResult]:
-            result = run_stochvol_single(
+        results = Parallel(n_jobs=config.n_jobs, backend="multiprocessing")(
+            delayed(run_stochvol_single)(
                 dataset.returns[i],
                 config,
                 seed=config.random_seed + i,
             )
-            return i, result
-
-        completed = Parallel(n_jobs=config.n_jobs, backend="multiprocessing")(
-            delayed(_run_one)(i) for i in pending
+            for i in pending
         )
 
-        for i, result in completed:
+        for i, result in zip(pending, results):
             _save_checkpoint(result, i, out_path)
             logger.info("Saved series %d/%d", i + 1, N)
 
