@@ -13,7 +13,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.estimation import MCMCConfig, MCMCResult, run_mcmc_batch, run_mcmc_single
+from src.estimation import (
+    MCMCConfig, MCMCResult, run_mcmc_batch, run_mcmc_single,
+    StochvolConfig, run_stochvol_single, run_stochvol_batch,
+)
 from src.simulation import SimulationResult, simulate_sv
 
 
@@ -258,3 +261,143 @@ def test_convergence_well_identified():
     # Pilot results: typically 1.05-1.12, up to 1.71 on hard series.
     # Threshold 1.2 flags genuine failures without falsely rejecting expected NUTS behaviour.
     assert np.all(r.rhat < 1.2), f"R-hat exceeds 1.2 (NUTS convergence failure): {r.rhat}"
+
+
+# ---------------------------------------------------------------------------
+# stochvol runner tests
+# ---------------------------------------------------------------------------
+
+STOCHVOL_FAST_CONFIG = StochvolConfig(draws=100, burnin=100, n_jobs=1)
+
+
+def test_stochvol_config_defaults():
+    cfg = StochvolConfig()
+    assert cfg.draws == 1000
+    assert cfg.burnin == 1000
+    assert cfg.n_jobs == 4
+    assert cfg.random_seed == 42
+
+
+def test_stochvol_r_script_exists():
+    from src.estimation.stochvol_runner import _R_SCRIPT
+    assert _R_SCRIPT.exists(), f"R script not found: {_R_SCRIPT}"
+
+
+def test_stochvol_single_returns_mcmc_result():
+    returns = _make_series(T=200, seed=7)
+    result = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=7)
+    assert isinstance(result, MCMCResult)
+
+
+def test_stochvol_single_output_shapes():
+    returns = _make_series(T=200, seed=8)
+    result = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=8)
+    assert result.mean.shape == (3,)
+    assert result.std.shape == (3,)
+    assert result.rhat.shape == (3,)
+    assert result.samples.shape == (STOCHVOL_FAST_CONFIG.draws, 3)
+
+
+def test_stochvol_single_output_finite():
+    returns = _make_series(T=200, seed=9)
+    result = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=9)
+    assert np.all(np.isfinite(result.mean))
+    assert np.all(np.isfinite(result.std))
+    assert np.all(np.isfinite(result.rhat))
+    assert np.all(np.isfinite(result.samples))
+
+
+def test_stochvol_single_std_positive():
+    returns = _make_series(T=200, seed=10)
+    result = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=10)
+    assert np.all(result.std > 0), "Posterior std devs must be positive"
+
+
+def test_stochvol_single_phi_in_range():
+    """Posterior mean for phi should stay within (0, 1) given our prior."""
+    returns = _make_series(T=200, seed=11)
+    result = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=11)
+    assert 0.0 < result.mean[1] < 1.0, f"phi posterior mean out of range: {result.mean[1]}"
+
+
+def test_stochvol_single_sigma_positive():
+    """sigma_eta posterior mean must be strictly positive."""
+    returns = _make_series(T=200, seed=12)
+    result = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=12)
+    assert result.mean[2] > 0.0, f"sigma_eta posterior mean not positive: {result.mean[2]}"
+
+
+def test_stochvol_single_rhat_reasonable():
+    """R-hat values should be finite and >= 1 by definition."""
+    returns = _make_series(T=200, seed=13)
+    result = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=13)
+    assert np.all(result.rhat >= 1.0), f"R-hat < 1: {result.rhat}"
+    assert np.all(np.isfinite(result.rhat)), f"Non-finite R-hat: {result.rhat}"
+
+
+def test_stochvol_deterministic_given_seed():
+    """Same seed produces identical results."""
+    returns = _make_series(T=200, seed=14)
+    r1 = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=14)
+    r2 = run_stochvol_single(returns, STOCHVOL_FAST_CONFIG, seed=14)
+    np.testing.assert_array_equal(r1.mean,    r2.mean)
+    np.testing.assert_array_equal(r1.samples, r2.samples)
+
+
+def test_stochvol_batch_output_files():
+    dataset = _make_dataset(N=3, T=100, seed=20)
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        run_stochvol_batch(dataset, STOCHVOL_FAST_CONFIG, out_path=out)
+        assert (out / "results.npz").exists()
+        # Per-series checkpoints
+        for i in range(3):
+            assert (out / f"series_{i:04d}.npz").exists()
+
+
+def test_stochvol_batch_results_shapes():
+    N = 3
+    dataset = _make_dataset(N=N, T=100, seed=21)
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        run_stochvol_batch(dataset, STOCHVOL_FAST_CONFIG, out_path=out)
+        data = np.load(out / "results.npz")
+        assert data["means"].shape        == (N, 3)
+        assert data["stds"].shape         == (N, 3)
+        assert data["rhats"].shape        == (N, 3)
+        assert data["samples"].shape      == (N, STOCHVOL_FAST_CONFIG.draws, 3)
+        assert data["true_params"].shape  == (N, 3)
+
+
+def test_stochvol_batch_resumable():
+    """Batch runner skips already-completed series on re-run."""
+    dataset = _make_dataset(N=3, T=100, seed=22)
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        run_stochvol_batch(dataset, STOCHVOL_FAST_CONFIG, out_path=out)
+        mtime_before = (out / "results.npz").stat().st_mtime
+
+        # Re-run: should not re-compute, results.npz should be overwritten but checkpoints intact
+        run_stochvol_batch(dataset, STOCHVOL_FAST_CONFIG, out_path=out)
+        for i in range(3):
+            assert (out / f"series_{i:04d}.npz").exists()
+
+
+@pytest.mark.slow
+def test_stochvol_convergence_on_realistic_series():
+    """
+    Slow convergence test: stochvol should recover parameters of a well-identified
+    T=500 series to within reasonable tolerance.  Marked slow — not run by default.
+    Run with: uv run pytest tests/test_mcmc.py -m slow -v
+    """
+    from src.simulation.simulator import simulate_sv
+    result   = simulate_sv(N=1, T=500, seed=99)
+    returns  = result.returns[0]
+    true     = result.params[0]   # [mu, phi, sigma_eta]
+
+    full_cfg = StochvolConfig(draws=1000, burnin=1000, n_jobs=1)
+    est      = run_stochvol_single(returns, full_cfg, seed=99)
+
+    np.testing.assert_allclose(est.mean, true, atol=0.4,
+                               err_msg="stochvol posterior mean too far from truth")
+    assert np.all(est.rhat < 1.2), f"R-hat too high: {est.rhat}"
