@@ -230,10 +230,11 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 
 **Remaining citation work:** Citations added in recent revisions have not all been manually verified against the source papers — must verify before final submission.
 
-### Part II — Empirical (NOT YET WRITTEN)
-- Chapter 4: Simulation Study
-- Chapter 5: Misspecification Analysis
-- Chapter 6: Real Data Application
+### Part II — Empirical (IN PROGRESS)
+- Chapter 4: Methodology (in progress — being written now)
+- Chapter 5: Simulation Study (not yet written — results complete)
+- Chapter 6: Misspecification Analysis (not yet written — results not yet generated)
+- Chapter 7: Real Data Application (not yet written — not yet started)
 
 ---
 
