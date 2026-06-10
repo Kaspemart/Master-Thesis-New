@@ -1,0 +1,56 @@
+{
+  "_note": "Consolidated results for Chapter 5 (Simulation Study). All numbers verified against source files on 2026-06-10. Raw values are full precision from results/*/summary.json and experiments/sample_size_comparison.json. Rounded values are to 3 decimal places as they appear in the thesis tables.",
+
+  "architecture_comparison_T1000": {
+    "_description": "Test set N=200, T=1000. All NNs use best hyperparameters from random search (84 trials total). stochvol is primary benchmark. NUTS shown for reference only (Uniform priors = idealised conditions).",
+    "mlp":         { "n_params": 267779, "mu_rmse": 0.280094, "phi_rmse": 0.085891, "sigma_rmse": 0.090873 },
+    "cnn":         { "n_params": 790019, "mu_rmse": 0.291590, "phi_rmse": 0.089059, "sigma_rmse": 0.088183 },
+    "tcn":         { "n_params":  88771, "mu_rmse": 0.278680, "phi_rmse": 0.081098, "sigma_rmse": 0.082051 },
+    "transformer": { "n_params": 406147, "mu_rmse": 0.281875, "phi_rmse": 0.080635, "sigma_rmse": 0.081903 },
+    "stochvol":    { "n_params": null,   "mu_rmse": 0.280987, "phi_rmse": 0.107394, "sigma_rmse": 0.079989 },
+    "nuts_ref":    { "n_params": null,   "mu_rmse": 0.296759, "phi_rmse": 0.081185, "sigma_rmse": 0.072197 }
+  },
+
+  "sample_size_comparison": {
+    "_description": "Test set N=200 per T. TCN and Transformer use same hyperparameters as T=1000 search (isolates effect of series length). Transformer T=2000 not run (OOM). stochvol is primary benchmark.",
+    "T500": {
+      "tcn":         { "mu_rmse": 0.361720, "phi_rmse": 0.090871, "sigma_rmse": 0.099643 },
+      "transformer": { "mu_rmse": 0.354422, "phi_rmse": 0.095548, "sigma_rmse": 0.099126 },
+      "stochvol":    { "mu_rmse": 0.354153, "phi_rmse": 0.108707, "sigma_rmse": 0.101244 },
+      "nuts_ref":    { "mu_rmse": 0.370436, "phi_rmse": 0.091047, "sigma_rmse": 0.089414 }
+    },
+    "T1000": {
+      "tcn":         { "mu_rmse": 0.278680, "phi_rmse": 0.081098, "sigma_rmse": 0.082051 },
+      "transformer": { "mu_rmse": 0.281875, "phi_rmse": 0.080635, "sigma_rmse": 0.081903 },
+      "stochvol":    { "mu_rmse": 0.280987, "phi_rmse": 0.107394, "sigma_rmse": 0.079989 },
+      "nuts_ref":    { "mu_rmse": 0.296759, "phi_rmse": 0.081185, "sigma_rmse": 0.072197 }
+    },
+    "T2000": {
+      "tcn":         { "mu_rmse": 0.200731, "phi_rmse": 0.074644, "sigma_rmse": 0.073501 },
+      "transformer": null,
+      "stochvol":    { "mu_rmse": 0.188554, "phi_rmse": 0.099756, "sigma_rmse": 0.056854 },
+      "nuts_ref":    { "mu_rmse": 0.199124, "phi_rmse": 0.072539, "sigma_rmse": 0.054946 }
+    }
+  },
+
+  "stochvol_rhat": {
+    "_description": "Fraction of series with R-hat > 1.1, by parameter and T. mu has zero convergence issues at all T. phi issues concentrate in low-phi series where Beta(7,1) prior conflicts with data — a structural stochvol limitation.",
+    "T500":  { "mu_frac_gt1p1": 0.000, "phi_frac_gt1p1": 0.080, "sigma_frac_gt1p1": 0.055 },
+    "T1000": { "mu_frac_gt1p1": 0.000, "phi_frac_gt1p1": 0.110, "sigma_frac_gt1p1": 0.060 },
+    "T2000": { "mu_frac_gt1p1": 0.000, "phi_frac_gt1p1": 0.140, "sigma_frac_gt1p1": 0.095 }
+  },
+
+  "lstm_note": "LSTM included in hyperparameter search (9 trials) but proxy task had to be heavily restricted: N=2000 series, sequences truncated to T=200. Best proxy val_loss=0.770 — not comparable to other architectures. Ruled out for full-scale training. Correct thesis framing: computationally infeasible on available hardware.",
+  "transformer_T2000_note": "Transformer not run at T=2000 — OOM even at batch_size=8. Sample size table therefore shows Transformer at T=500 and T=1000 only.",
+
+  "sources": {
+    "mlp_T1000":         "results/mlp_best_T1000/summary.json",
+    "cnn_T1000":         "results/cnn_best_T1000/summary.json",
+    "tcn_T1000":         "results/tcn_best_T1000/summary.json",
+    "transformer_T1000": "results/transformer_best_T1000/summary.json",
+    "tcn_T500_T2000":    "experiments/sample_size_comparison.json",
+    "transformer_T500":  "results/transformer_best_T500/summary.json",
+    "stochvol_all_T":    "results/stochvol_T{500,1000,2000}/summary.json",
+    "nuts_all_T":        "experiments/sample_size_comparison.json (keys: mcmc_T*)"
+  }
+}
