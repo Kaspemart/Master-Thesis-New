@@ -93,7 +93,7 @@ Key nuance: a small error in a parameter like `φ` (volatility persistence) may 
 
 ## Classical Benchmark
 
-**Bayesian MCMC is the confirmed benchmark**, implemented via the **stochvol R package** (v3.2.9), which implements the ASIS (ancillarity-sufficiency interweaving) sampler from Kastner & Frühwirth-Schnatter (2014). Citations to Kim, Shephard & Chib (1998) are historical context only — stochvol does NOT use the mixture-of-normals approximation.
+**Bayesian MCMC is the confirmed benchmark**, implemented via the **stochvol R package** (v3.2.9). stochvol uses **both** the auxiliary mixture-of-normals approximation (Kim, Shephard & Chib 1998) **and** the ASIS interweaving strategy (Kastner & Frühwirth-Schnatter 2014). The mixture approximation handles the non-Gaussian latent state sampling (Fast SV mode — the default); ASIS improves mixing of the parameter draws on top of that. KSC (1998) is an active component of the benchmark, not merely historical context — cite both papers.
 
 A PyMC NUTS implementation also exists (`src/estimation/mcmc_runner.py`) and results are in `results/mcmc_T*/` for comparison, but stochvol is the primary benchmark cited in the thesis.
 
@@ -201,7 +201,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 ### Language / Stack
 - **Python with PyTorch** (confirmed — not TensorFlow)
 - NumPy / SciPy for simulation
-- MCMC benchmark: **stochvol R package** (v3.2.9, ASIS sampler) called via subprocess from Python — cite Kastner & Frühwirth-Schnatter (2014) as the implementation basis; Kim et al. (1998) as historical context only. NUTS (PyMC) preserved in `mcmc_runner.py` for reference.
+- MCMC benchmark: **stochvol R package** (v3.2.9) called via subprocess from Python — cite both Kastner & Frühwirth-Schnatter (2014) for ASIS and Kim, Shephard & Chib (1998) for the mixture approximation (both are active components). NUTS (PyMC) preserved in `mcmc_runner.py` for reference.
 - Data storage: NumPy `.npz` files
 
 ---
@@ -261,7 +261,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 - **Citation accuracy:** Citations added in recent revisions have not all been manually verified. Must verify before final submission.
 - **Parameter identifiability:** Different parameter combinations can produce similar return dynamics. This affects both neural and classical methods and should be acknowledged in the thesis.
 - **Metric choice:** MSE alone is insufficient. The metric must account for the fact that small parameter errors can have large likelihood impacts.
-- **MCMC citation mismatch — RESOLVED:** Switched from NUTS (PyMC) to stochvol R package (ASIS sampler). Kastner & Frühwirth-Schnatter (2014) is now accurately cited as the implementation basis. Kim et al. (1998) cited as historical context only. See `memory/project_benchmark_switch.md` for full rationale.
+- **MCMC citation mismatch — RESOLVED:** Switched from NUTS (PyMC) to stochvol R package. stochvol uses both the KSC (1998) mixture approximation and the KFS (2014) ASIS strategy — cite both. KSC (1998) is NOT merely historical context; it is an active component of the Fast SV sampler (default mode). See `memory/project_benchmark_switch.md` for background on the benchmark switch.
 - **Validation set required for NN:** The current dataset plan has train (100k) and test (200). Architecture selection and hyperparameter tuning must use a separate validation set, not the test set. Split training data: 90k train / 10k validation. The 200-series test set is only used once, for final reporting. This must be incorporated before generating datasets.
 - **MCMC T=2000 piloted and resolved:** 2000 tune steps required (1000 was insufficient — R-hat up to 1.56, 298 divergences). Full batch should use `MCMCConfig(draws=1000, tune=2000, target_accept=0.9)`. Series in the low-φ region (φ ≈ 0.5) remain hard to identify even with 2000 tune — posterior means can be off by ~0.08 on φ. This is a fundamental NUTS limitation, not a tuning issue; acknowledge in results chapter.
 
