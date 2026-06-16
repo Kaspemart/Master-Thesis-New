@@ -246,7 +246,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 4. **Whether to estimate parameters only or parameters and latent states jointly** — affects architecture choice
 
 **Resolved decisions (no longer open):**
-- Benchmark method: **stochvol R package (ASIS sampler)** — Kastner & Frühwirth-Schnatter (2014) is the primary citation; NUTS (PyMC) preserved for reference but is NOT the primary benchmark
+- Benchmark method: **stochvol R package** — cite both KSC (1998) for mixture approximation and KFS (2014) for ASIS; NUTS (PyMC) preserved for reference but is NOT the primary benchmark
 - Model variants to implement: **base SV and SV with leverage** — all others are misspecification scenarios only
 - Training dataset size: **≥ 100,000 series**
 - Series lengths to test: **T = 500, 1,000, 2,000**
@@ -274,7 +274,7 @@ The leverage effect is implemented via **Cholesky decomposition** of the 2×2 co
 - Simulators: **COMPLETE** — base SV and SV-with-leverage, 71 tests passing
 - Datasets: **COMPLETE** — all 9 datasets generated (train/val/test × T=500/1000/2000), test set nested from T=2000 slice
 - MCMC benchmark (NUTS/PyMC): **COMPLETE** — run on all 3 test sets, results in `results/mcmc_T*/` (preserved for reference; NOT the primary benchmark)
-- stochvol benchmark (ASIS/KFS2014): **COMPLETE** — run on all 3 test sets, results in `results/stochvol_T*/` (primary benchmark)
+- stochvol benchmark (KSC1998 mixture + KFS2014 ASIS): **COMPLETE** — run on all 3 test sets, results in `results/stochvol_T*/` (primary benchmark)
 
 ### Neural Network — Simulation Study COMPLETE
 
