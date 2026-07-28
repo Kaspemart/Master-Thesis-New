@@ -81,7 +81,7 @@ def main():
                     n: float((d["rhat"][:, i] > 1.1).mean()) for i, n in enumerate(nm)}
             out["parameter_estimates"][scen][cell] = entry
 
-    # --- predictive log-likelihood 2x2 + contrasts ---
+    # --- predictive log-likelihood 2x2: out-of-sample, in-sample, cleaned ---
     for scen in NAMES:
         ab = np.load(R / f"{scen}_predictive_ll.npz")
         cd = np.load(R / f"{scen}_predictive_ll_correct.npz")
@@ -90,14 +90,25 @@ def main():
         m_db, t_db = tstat(d - b)
         m_cd, t_cd = tstat(c - d)
         m_ab, t_ab = tstat(a - b)  # central a vs b
+        ai, bi, ci, di = ab["tcn_in"], ab["sv_in"], cd["c_in"], cd["d_in"]
+        m_ab_in, t_ab_in = tstat(ai - bi)
+        # non-convergence-cleaned c-d (cell d converged on every param)
+        rhat = np.load(R / f"{scen}_stochvol_correct.npz")["rhat"]
+        conv = (rhat <= 1.1).all(axis=1)
+        m_cd_cl, t_cd_cl = tstat((c - d)[conv])
         out["predictive_ll"][scen] = dict(
             oos_mean=dict(a=float(a.mean()), b=float(b.mean()),
                           c=float(c.mean()), d=float(d.mean())),
+            insample_mean=dict(a=float(ai.mean()), b=float(bi.mean()),
+                               c=float(ci.mean()), d=float(di.mean())),
             contrasts=dict(
                 a_minus_b=dict(mean=m_ab, t=t_ab),
+                a_minus_b_insample=dict(mean=m_ab_in, t=t_ab_in),
                 c_minus_a=dict(mean=m_ca, t=t_ca),
                 d_minus_b=dict(mean=m_db, t=t_db),
-                c_minus_d=dict(mean=m_cd, t=t_cd)))
+                c_minus_d=dict(mean=m_cd, t=t_cd),
+                c_minus_d_cleaned=dict(mean=m_cd_cl, t=t_cd_cl,
+                                       n_kept=int(conv.sum()))))
 
     Path("experiments").mkdir(exist_ok=True)
     with open("experiments/chapter6_consolidated_results.json", "w") as f:
@@ -123,15 +134,35 @@ def main():
                  f"| {ct['c_minus_a']['mean']:+.2f} (t{ct['c_minus_a']['t']:.1f}) "
                  f"| {ct['d_minus_b']['mean']:+.2f} (t{ct['d_minus_b']['t']:.1f}) "
                  f"| {ct['c_minus_d']['mean']:+.2f} (t{ct['c_minus_d']['t']:.1f}) |")
-    L += ["", "## Parameter RMSE by cell", ""]
+    # in-sample table
+    L += ["", "## In-sample predictive log-likelihood (2×2)", "",
+          "| Scenario | (a) misspec NN | (b) misspec MCMC | (c) correct NN | (d) correct MCMC |",
+          "|---|---|---|---|---|"]
+    for scen in NAMES:
+        o = out["predictive_ll"][scen]["insample_mean"]
+        L.append(f"| {scen} | {o['a']:.2f} | {o['b']:.2f} | {o['c']:.2f} | {o['d']:.2f} |")
+    # convergence-cleaned c-d
+    L += ["", "## Non-convergence-cleaned c−d (OOS predictive LL)",
+          "Cell (d) converged on every parameter (R-hat ≤ 1.1); NN always converges.", "",
+          "| Scenario | c−d full | c−d cleaned | series kept |",
+          "|---|---|---|---|"]
+    for scen in NAMES:
+        ct = out["predictive_ll"][scen]["contrasts"]
+        L.append(f"| {scen} | {ct['c_minus_d']['mean']:+.2f} (t{ct['c_minus_d']['t']:.1f}) "
+                 f"| {ct['c_minus_d_cleaned']['mean']:+.2f} (t{ct['c_minus_d_cleaned']['t']:.1f}) "
+                 f"| {ct['c_minus_d_cleaned']['n_kept']}/200 |")
+    # parameter RMSE and bias by cell
+    L += ["", "## Parameter RMSE and bias by cell", ""]
     for scen, names in NAMES.items():
         L += [f"### {scen}", "",
-              "| Cell | " + " | ".join(names) + " |",
-              "|---|" + "|".join(["---"] * len(names)) + "|"]
+              "| Cell | metric | " + " | ".join(names) + " |",
+              "|---|---|" + "|".join(["---"] * len(names)) + "|"]
         for cell in ["a_misspec_NN", "b_misspec_MCMC", "c_correct_NN", "d_correct_MCMC"]:
             met = out["parameter_estimates"][scen][cell]["metrics"]
-            row = [f"{met[n]['rmse']:.4f}" if n in met else "—" for n in names]
-            L.append(f"| {cell} | " + " | ".join(row) + " |")
+            rr = [f"{met[n]['rmse']:.4f}" if n in met else "—" for n in names]
+            bb = [f"{met[n]['bias']:+.4f}" if n in met else "—" for n in names]
+            L.append(f"| {cell} | RMSE | " + " | ".join(rr) + " |")
+            L.append(f"| | bias | " + " | ".join(bb) + " |")
         L.append("")
     Path("experiments/chapter6_results.md").write_text("\n".join(L))
 

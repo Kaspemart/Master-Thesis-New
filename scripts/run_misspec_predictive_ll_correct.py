@@ -50,20 +50,21 @@ def oos_ll(returns_full, est_row, has_rho, has_nu):
     rho = min(max(rho, -0.999), 0.999)
     if np.isfinite(nu):
         nu = max(nu, 2.05)
-    vals = []
+    ins, oos = [], []
     for s in SEEDS:
-        _, b = sv_log_likelihood(returns_full, mu, phi, sig, nu=nu, rho=rho,
+        a, b = sv_log_likelihood(returns_full, mu, phi, sig, nu=nu, rho=rho,
                                  n_particles=N_PARTICLES, seed=s, t_split=T_SPLIT)
-        vals.append(b)
-    return float(np.mean(vals))
+        ins.append(a); oos.append(b)
+    return float(np.mean(ins)), float(np.mean(oos))
 
 
 def compute_cell(scen, path, est_file):
     returns = np.load(path)["returns"].astype(np.float64)
     est = np.load(OUT / est_file)["est"]
     lay = LAYOUT[scen]
-    return np.array([oos_ll(returns[i], est[i], lay["has_rho"], lay["has_nu"])
-                     for i in range(returns.shape[0])])
+    res = [oos_ll(returns[i], est[i], lay["has_rho"], lay["has_nu"])
+           for i in range(returns.shape[0])]
+    return np.array([r[0] for r in res]), np.array([r[1] for r in res])
 
 
 def main():
@@ -74,9 +75,10 @@ def main():
     }
     rows = {}
     for scen, path in scen_paths.items():
-        c = compute_cell(scen, path, f"{scen}_tcn_correct.npz")
-        d = compute_cell(scen, path, f"{scen}_stochvol_correct.npz")
-        np.savez_compressed(OUT / f"{scen}_predictive_ll_correct.npz", c_oos=c, d_oos=d)
+        c_in, c = compute_cell(scen, path, f"{scen}_tcn_correct.npz")
+        d_in, d = compute_cell(scen, path, f"{scen}_stochvol_correct.npz")
+        np.savez_compressed(OUT / f"{scen}_predictive_ll_correct.npz",
+                            c_oos=c, d_oos=d, c_in=c_in, d_in=d_in)
         # misspecified (a,b) OOS from earlier
         ab = np.load(OUT / f"{scen}_predictive_ll.npz")
         a, b = ab["tcn_oos"], ab["sv_oos"]
