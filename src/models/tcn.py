@@ -69,6 +69,8 @@ class SVTCNNet(nn.Module):
         n_blocks:    Number of TCN residual blocks (default 6).
         mlp_dim:     Width of the MLP head hidden layer (default 64).
         dropout:     Dropout probability (default 0.1).
+        n_outputs:   Number of output parameters (default 3 = base SV;
+                     4 = ASV +ρ or SV-t +ν; 5 = ASV-t +ρ +ν).
     """
 
     def __init__(
@@ -78,6 +80,7 @@ class SVTCNNet(nn.Module):
         n_blocks:    int = 6,
         mlp_dim:     int = 64,
         dropout:     float = 0.1,
+        n_outputs:   int = 3,
     ):
         super().__init__()
 
@@ -93,7 +96,7 @@ class SVTCNNet(nn.Module):
             nn.Linear(n_channels, mlp_dim),
             nn.ReLU(inplace=True),
             nn.Dropout(p=dropout),
-            nn.Linear(mlp_dim, 3),
+            nn.Linear(mlp_dim, n_outputs),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

@@ -32,3 +32,7 @@ checkpoints/
 
 # Claude Code tooling artifacts
 .claude/
+
+# Misspecification per-series stochvol checkpoints — redundant with assembled *_stochvol.npz
+results/misspec/*/series_*.npz
+results/misspec/*/results.npz

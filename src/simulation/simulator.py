@@ -18,7 +18,14 @@ from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 
-from .sv_params import SVParams, SVLeverageParams, draw_parameters
+from .sv_params import (
+    SVParams,
+    SVLeverageParams,
+    SVtParams,
+    ASVtParams,
+    draw_parameters,
+    draw_nu,
+)
 
 
 H_CLIP = 50.0  # clip |h_t| above this; exp(25) ≈ 7.2e10, finite in float32
@@ -138,21 +145,29 @@ def simulate_sv_leverage(
     """
     Simulate N return series from the SV model with leverage effect.
 
-    The leverage effect is implemented via Cholesky decomposition of the
-    2×2 correlation matrix [[1, ρ], [ρ, 1]]:
+    The leverage effect uses the FORWARD convention, matching stochvol
+    (Kastner 2016) and the standard ASV literature (Omori et al. 2007): the
+    return shock ε_t is correlated with the NEXT volatility increment η_{t+1},
+    i.e. corr(ε_t, η_{t+1}) = ρ. Equivalently, η_t is correlated with the
+    previous return shock ε_{t-1}. This is the timing under which ρ < 0 gives
+    the leverage effect — a negative return raising subsequent volatility.
 
-        Draw z1_t, z2_t ~ N(0,1) independently, then set:
-            ε_t = z1_t                           (return shock)
-            η_t = ρ·z1_t + sqrt(1−ρ²)·z2_t     (volatility shock)
+    Implemented via Cholesky decomposition of the 2×2 correlation matrix:
 
-        This induces corr(ε_t, η_t) = ρ. When ρ < 0, negative returns
-        tend to increase future volatility (leverage effect).
+        Draw z1_t, z2_t ~ N(0,1) independently. Then:
+            ε_t = z1_t                                    (return shock)
+            η_t = ρ·z1_{t-1} + sqrt(1−ρ²)·z2_t          (volatility shock)
+
+        so corr(ε_{t-1}, η_t) = ρ, i.e. corr(ε_t, η_{t+1}) = ρ. At t = 0 there
+        is no preceding return shock, so η_0 = z2_0 (independent component only).
+        η_t retains unit variance for all t: ρ² + (1−ρ²) = 1.
 
     The Cholesky factor sqrt(1−ρ²) is computed once per series before the
     time loop — not inside it — since ρ is fixed for each series.
 
-    Note for methodology chapter: This Cholesky decomposition must be
-    described explicitly when writing up the leverage model.
+    Note for methodology chapter: this forward-convention Cholesky construction
+    must be described explicitly, and it matches the stochvol/ASV benchmark.
+    A verification against svsim confirms the two use the same timing.
 
     Args:
         N:      Number of series. Must be >= 1.
@@ -210,9 +225,16 @@ def simulate_sv_leverage(
     clipped_any = False
 
     # --- Time loop (vectorised over N) ---
+    # Forward leverage: eta_t is correlated with the PREVIOUS return shock
+    # eps_{t-1} = z1[t-1], so corr(eps_t, eta_{t+1}) = rho. At t=0 there is no
+    # eps_{-1}, so eta_0 = z2[0] (a unit-variance independent shock). This
+    # matches the stochvol/Omori forward convention.
     for t in range(T):
         eps_t = z1[t]                                      # (N,) return shock
-        eta_t = rho * z1[t] + chol_factor * z2[t]         # (N,) correlated vol shock
+        if t == 0:
+            eta_t = z2[t]                                  # unit-variance; no eps_{-1}
+        else:
+            eta_t = rho * z1[t - 1] + chol_factor * z2[t]  # corr(eps_{t-1}, eta_t) = rho
 
         h = mu + phi * (h - mu) + sigma_eta * eta_t
 
@@ -239,6 +261,148 @@ def simulate_sv_leverage(
         params=params,
         latent_h=latent_h_out,
     )
+
+
+def _simulate_t_core(
+    mu: np.ndarray,
+    phi: np.ndarray,
+    sigma_eta: np.ndarray,
+    rho: np.ndarray,
+    nu: np.ndarray,
+    T: int,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Shared construction for the Student-t SV variants (SV-t and ASV-t).
+
+    Matches the conventions verified against stochvol's svsim:
+      - Standardised-t errors: eps_t = sqrt(tau_t) * z1_t with
+        tau_t ~ InverseGamma(nu/2, (nu-2)/2) so E[tau_t] = 1, giving unit
+        variance (exp(h_t) is the conditional variance regardless of nu).
+      - Forward leverage on the NORMAL component: eta_t = rho*z1_{t-1} +
+        sqrt(1-rho^2)*z2_t, so corr(z1_t, eta_{t+1}) = rho. At t=0, eta_0 = z2_0.
+        rho = 0 gives the pure SV-t model.
+
+    All parameter arrays are (N,) float64. Returns (returns, latent_h), both
+    (N, T) float32.
+    """
+    N = mu.shape[0]
+    chol_factor = np.sqrt(1.0 - rho ** 2)
+
+    stationary_var = sigma_eta ** 2 / (1.0 - phi ** 2)
+    h = rng.normal(mu, np.sqrt(stationary_var))            # h_{-1}
+
+    z1 = rng.standard_normal((T, N))   # normal component of the return shock
+    z2 = rng.standard_normal((T, N))   # independent component of the vol shock
+
+    # tau_t ~ InverseGamma(nu/2, (nu-2)/2), per (T, N) with per-series nu.
+    nu_row = nu[None, :]
+    tau = 1.0 / rng.gamma(shape=nu_row / 2.0, scale=2.0 / (nu_row - 2.0), size=(T, N))
+
+    latent_h_out = np.empty((N, T), dtype=np.float32)
+    returns_out  = np.empty((N, T), dtype=np.float32)
+    clipped_any = False
+
+    for t in range(T):
+        if t == 0:
+            eta_t = z2[t]                                  # no eps_{-1}
+        else:
+            eta_t = rho * z1[t - 1] + chol_factor * z2[t]  # forward leverage on z1_{t-1}
+        h = mu + phi * (h - mu) + sigma_eta * eta_t
+
+        if np.any(np.abs(h) > H_CLIP):
+            clipped_any = True
+            h = np.clip(h, -H_CLIP, H_CLIP)
+
+        eps_t = np.sqrt(tau[t]) * z1[t]                    # standardised-t return shock
+        latent_h_out[:, t] = h
+        returns_out[:, t]  = np.exp(h / 2.0) * eps_t
+
+    if clipped_any:
+        warnings.warn(
+            f"Some h_t values exceeded H_CLIP={H_CLIP} and were clipped.",
+            UserWarning,
+            stacklevel=3,
+        )
+    return returns_out, latent_h_out
+
+
+def simulate_sv_t(
+    N: int,
+    T: int,
+    config: SVtParams | None = None,
+    seed: int | None = None,
+) -> SimulationResult:
+    """
+    Simulate N return series from the SV model with standardised Student-t errors.
+
+    Args:
+        N, T:   Number of series and length. Must be >= 1.
+        config: SVtParams instance. Defaults to SVtParams().
+        seed:   Integer seed for reproducibility.
+
+    Returns:
+        SimulationResult with params (N, 4) — columns [μ, φ, σ_η, ν].
+    """
+    if N <= 0:
+        raise ValueError(f"N must be >= 1, got {N}")
+    if T <= 0:
+        raise ValueError(f"T must be >= 1, got {T}")
+    if seed is not None and not isinstance(seed, (int, np.integer)):
+        raise TypeError(f"seed must be an integer or None, got {type(seed).__name__}")
+    if config is None:
+        config = SVtParams()
+
+    rng = np.random.default_rng(seed)
+    base = draw_parameters(N, config, rng)                 # (N, 3)
+    mu        = base[:, 0].astype(np.float64)
+    phi       = base[:, 1].astype(np.float64)
+    sigma_eta = base[:, 2].astype(np.float64)
+    nu = draw_nu(N, config.nu_range, rng)                  # (N,)
+    rho = np.zeros(N)                                       # no leverage
+
+    returns_out, latent_h_out = _simulate_t_core(mu, phi, sigma_eta, rho, nu, T, rng)
+    params = np.column_stack([base, nu.astype(np.float32)])  # (N, 4)
+    return SimulationResult(returns=returns_out, params=params, latent_h=latent_h_out)
+
+
+def simulate_asv_t(
+    N: int,
+    T: int,
+    config: ASVtParams | None = None,
+    seed: int | None = None,
+) -> SimulationResult:
+    """
+    Simulate N return series from the SV model with leverage AND Student-t errors.
+
+    Args:
+        N, T:   Number of series and length. Must be >= 1.
+        config: ASVtParams instance. Defaults to ASVtParams().
+        seed:   Integer seed for reproducibility.
+
+    Returns:
+        SimulationResult with params (N, 5) — columns [μ, φ, σ_η, ρ, ν].
+    """
+    if N <= 0:
+        raise ValueError(f"N must be >= 1, got {N}")
+    if T <= 0:
+        raise ValueError(f"T must be >= 1, got {T}")
+    if seed is not None and not isinstance(seed, (int, np.integer)):
+        raise TypeError(f"seed must be an integer or None, got {type(seed).__name__}")
+    if config is None:
+        config = ASVtParams()
+
+    rng = np.random.default_rng(seed)
+    base = draw_parameters(N, config, rng)                 # (N, 3)
+    mu        = base[:, 0].astype(np.float64)
+    phi       = base[:, 1].astype(np.float64)
+    sigma_eta = base[:, 2].astype(np.float64)
+    rho = rng.uniform(*config.rho_range, size=N)           # (N,)
+    nu = draw_nu(N, config.nu_range, rng)                  # (N,)
+
+    returns_out, latent_h_out = _simulate_t_core(mu, phi, sigma_eta, rho, nu, T, rng)
+    params = np.column_stack([base, rho.astype(np.float32), nu.astype(np.float32)])  # (N, 5)
+    return SimulationResult(returns=returns_out, params=params, latent_h=latent_h_out)
 
 
 def save_dataset(path: str | Path, result: SimulationResult) -> None:

@@ -147,6 +147,92 @@ class SVLeverageParams(SVParams):
         return out
 
 
+@dataclass
+class SVtParams(SVParams):
+    """
+    Configuration for the SV model with Student-t observation errors (SV-t).
+
+    Extends SVParams by adding the degrees-of-freedom parameter ν of the
+    standardised (unit-variance) t observation errors. As ν → ∞ the model
+    reduces to the Gaussian base SV model.
+
+    nu_range default (3, 40): ν = 3 gives very heavy tails (finite variance),
+    ν = 40 is effectively Gaussian. ν is sampled uniformly on 1/ν (see
+    draw_nu) so that tail behaviour — which changes fast at low ν and slowly
+    at high ν — is covered evenly rather than over-sampling the near-normal
+    region. Matches stochvol's standardised-t convention.
+    """
+    nu_range: tuple[float, float] = (3.0, 40.0)
+
+    def transform(self, params: np.ndarray) -> np.ndarray:
+        """Map (N, 4) [μ, φ, σ_η, ν] to unconstrained space; ν → log(ν − 2)."""
+        params = np.asarray(params, dtype=np.float64)
+        out = np.empty_like(params)
+        out[:, 0] = params[:, 0]                                    # μ: identity
+        out[:, 1] = np.log(params[:, 1] / (1.0 - params[:, 1]))    # φ: logit
+        out[:, 2] = np.log(params[:, 2])                            # σ_η: log
+        out[:, 3] = np.log(params[:, 3] - 2.0)                      # ν: log(ν−2), ν>2
+        return out
+
+    def inverse_transform(self, params_t: np.ndarray) -> np.ndarray:
+        """Inverse of transform(); ν_t → 2 + exp(ν_t)."""
+        params_t = np.asarray(params_t, dtype=np.float64)
+        out = np.empty_like(params_t)
+        out[:, 0] = params_t[:, 0]                                  # μ: identity
+        out[:, 1] = 1.0 / (1.0 + np.exp(-params_t[:, 1]))          # φ: sigmoid
+        out[:, 2] = np.exp(params_t[:, 2])                          # σ_η: exp
+        out[:, 3] = 2.0 + np.exp(params_t[:, 3])                    # ν: 2 + exp
+        return out
+
+
+@dataclass
+class ASVtParams(SVLeverageParams):
+    """
+    Configuration for the SV model with BOTH leverage and Student-t errors (ASV-t).
+
+    Extends SVLeverageParams by adding ν. Parameter vector is
+    [μ, φ, σ_η, ρ, ν]. Leverage uses the forward convention (see
+    simulate_sv_leverage) and couples to the normal component of the t
+    scale-mixture, matching stochvol.
+    """
+    nu_range: tuple[float, float] = (3.0, 40.0)
+
+    def transform(self, params: np.ndarray) -> np.ndarray:
+        """Map (N, 5) [μ, φ, σ_η, ρ, ν] to unconstrained space."""
+        params = np.asarray(params, dtype=np.float64)
+        out = np.empty_like(params)
+        out[:, 0] = params[:, 0]                                    # μ: identity
+        out[:, 1] = np.log(params[:, 1] / (1.0 - params[:, 1]))    # φ: logit
+        out[:, 2] = np.log(params[:, 2])                            # σ_η: log
+        out[:, 3] = np.arctanh(params[:, 3])                        # ρ: arctanh
+        out[:, 4] = np.log(params[:, 4] - 2.0)                      # ν: log(ν−2)
+        return out
+
+    def inverse_transform(self, params_t: np.ndarray) -> np.ndarray:
+        """Inverse of transform()."""
+        params_t = np.asarray(params_t, dtype=np.float64)
+        out = np.empty_like(params_t)
+        out[:, 0] = params_t[:, 0]                                  # μ: identity
+        out[:, 1] = 1.0 / (1.0 + np.exp(-params_t[:, 1]))          # φ: sigmoid
+        out[:, 2] = np.exp(params_t[:, 2])                          # σ_η: exp
+        out[:, 3] = np.tanh(params_t[:, 3])                         # ρ: tanh
+        out[:, 4] = 2.0 + np.exp(params_t[:, 4])                    # ν: 2 + exp
+        return out
+
+
+def draw_nu(N: int, nu_range: tuple[float, float], rng: np.random.Generator) -> np.ndarray:
+    """
+    Sample N degrees-of-freedom values uniformly on 1/ν over the given range.
+
+    Uniform-on-1/ν gives even coverage of tail heaviness: t_3 vs t_5 is a large
+    difference in tails, t_30 vs t_40 is negligible. Sampling on 1/ν avoids
+    over-representing the near-Gaussian high-ν region.
+    """
+    lo, hi = nu_range
+    u = rng.uniform(1.0 / hi, 1.0 / lo, size=N)   # uniform on 1/ν
+    return 1.0 / u
+
+
 def draw_parameters(N: int, config: SVParams, rng: np.random.Generator) -> np.ndarray:
     """
     Sample N parameter vectors uniformly from the ranges in config.

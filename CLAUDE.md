@@ -191,12 +191,13 @@ Apply transformations so the network always outputs unconstrained values; transf
 - `ρ ∈ (−1, 1)` — apply **arctanh** transformation (not logit — logit requires input in (0,1) but ρ can be negative); inverse is tanh; training range `(−0.95, 0.5)` — covers all realistic asset classes (equities: −0.7 to −0.3, FX: near 0, commodities: up to +0.2) without including near-singular extremes that are economically implausible
 
 ### Correlated Noise Implementation (Leverage Model)
-The leverage effect is implemented via **Cholesky decomposition** of the 2×2 correlation matrix:
+The leverage effect uses the **FORWARD convention** — corr(ε_t, η_{t+1}) = ρ — matching stochvol (Kastner 2016) and the standard ASV literature (Omori et al. 2007). Verified empirically against `svsim` (2026-07-25). The return shock ε_t is correlated with the *next* period's volatility increment, so ρ < 0 means a negative return raises *subsequent* volatility.
 - Draw independent `z1, z2 ~ N(0,1)`
-- Set `ε_t = z1` (return shock)
-- Set `η_t = ρ·z1 + sqrt(1−ρ²)·z2` (volatility shock, correlated with ε_t)
-- This is mathematically equivalent to drawing jointly from N(0, Σ) where Σ = [[1,ρ],[ρ,1]]
-- **Note for methodology chapter:** This Cholesky decomposition approach must be described explicitly when writing up the leverage model specification.
+- Set `ε_t = z1_t` (return shock)
+- Set `η_t = ρ·z1_{t-1} + sqrt(1−ρ²)·z2_t` (volatility shock correlated with the *previous* return shock); at t=0, `η_0 = z2_0` (no ε_{-1})
+- This gives corr(ε_t, η_{t+1}) = ρ, with η_t retaining unit variance.
+- **HISTORY:** the simulator originally used the contemporaneous convention (η_t = ρ·z1_t + …), which does NOT match stochvol. Switched to forward on 2026-07-25. Any thesis text or figure describing the old contemporaneous form must be corrected.
+- **Note for methodology chapter:** this forward-convention Cholesky construction must be described explicitly; it now matches the stochvol/ASV benchmark.
 
 ### Language / Stack
 - **Python with PyTorch** (confirmed — not TensorFlow)

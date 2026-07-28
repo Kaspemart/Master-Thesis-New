@@ -184,11 +184,12 @@ class TestSaveLoad:
 class TestStatisticalSanity:
     def test_leverage_effect_present(self):
         """
-        With fixed ρ = -0.7, the contemporaneous correlation between r_t and h_t
-        should be negative. This is the leverage effect channel: at each step t,
-        eps_t (return shock) and eta_t (vol shock) are correlated with coefficient rho.
-        When rho < 0, a negative return shock (eps_t < 0) pushes h_t up via
-        eta_t = rho*eps_t + chol*z2_t, so r_t and h_t are negatively correlated.
+        Forward leverage convention (matches stochvol / Omori et al. 2007):
+        the return shock ε_t is correlated with the NEXT volatility increment
+        η_{t+1}, i.e. corr(ε_t, η_{t+1}) = ρ. So with ρ < 0 a negative return
+        raises SUBSEQUENT volatility: corr(r_t, h_{t+1} - h_t) should be
+        negative, while the contemporaneous corr(r_t, h_t - h_{t-1}) should be
+        approximately zero.
         """
         config = SVLeverageParams(
             mu_range=(-1.5, -1.5),
@@ -199,13 +200,15 @@ class TestStatisticalSanity:
         result = simulate_sv_leverage(N=2000, T=500, config=config, seed=0)
         r = result.returns.astype(np.float64)   # (N, T)
         h = result.latent_h.astype(np.float64)  # (N, T)
-        # Contemporaneous correlation corr(r_t, h_t) across time, averaged over series
-        corrs = np.array([
-            np.corrcoef(r[i], h[i])[0, 1]
-            for i in range(r.shape[0])
-        ])
-        mean_corr = corrs.mean()
-        assert mean_corr < 0, f"Expected negative contemporaneous corr(r,h) for rho<0, got {mean_corr:.4f}"
+        dh = h[:, 1:] - h[:, :-1]               # h_{t+1} - h_t
+
+        # Forward: corr(r_t, h_{t+1} - h_t) should be negative for rho < 0.
+        fwd = np.corrcoef(r[:, :-1].ravel(), dh.ravel())[0, 1]
+        assert fwd < 0, f"Expected negative forward corr(r_t, h_(t+1)-h_t), got {fwd:.4f}"
+
+        # Contemporaneous: corr(r_t, h_t - h_{t-1}) should be near zero.
+        contemp = np.corrcoef(r[:, 1:].ravel(), dh.ravel())[0, 1]
+        assert abs(contemp) < 0.05, f"Expected ~0 contemporaneous corr, got {contemp:.4f}"
 
     def test_rho_zero_distributional_match(self):
         """
