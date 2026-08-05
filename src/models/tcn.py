@@ -81,11 +81,21 @@ class SVTCNNet(nn.Module):
         mlp_dim:     int = 64,
         dropout:     float = 0.1,
         n_outputs:   int = 3,
+        second_channel: str | None = None,
     ):
         super().__init__()
 
-        # Project from 1 input channel to n_channels
-        self.input_proj = nn.Conv1d(1, n_channels, kernel_size=1)
+        # second_channel controls the input representation:
+        #   None   — single channel log(r^2), sign-blind (default).
+        #   "raw"  — two channels [log(r^2), r]:      the untransformed returns.
+        #   "sign" — two channels [log(r^2), sign(r)]: just the sign.
+        # The extra channel restores the sign of each return, the information the
+        # leverage effect depends on and which log(r^2) discards.
+        if second_channel not in (None, "raw", "sign"):
+            raise ValueError(f"second_channel must be None/'raw'/'sign', got {second_channel}")
+        self.second_channel = second_channel
+        in_ch = 1 if second_channel is None else 2
+        self.input_proj = nn.Conv1d(in_ch, n_channels, kernel_size=1)
 
         self.blocks = nn.Sequential(*[
             _TCNBlock(n_channels, kernel_size, dilation=2 ** i, dropout=dropout)
@@ -101,8 +111,13 @@ class SVTCNNet(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x: (batch, T)
-        x = torch.log(x ** 2 + 1e-8)
-        x = x.unsqueeze(1)              # → (batch, 1, T)
+        log_r2 = torch.log(x ** 2 + 1e-8)
+        if self.second_channel == "raw":
+            x = torch.stack([log_r2, x], dim=1)               # → (batch, 2, T)
+        elif self.second_channel == "sign":
+            x = torch.stack([log_r2, torch.sign(x)], dim=1)   # → (batch, 2, T)
+        else:
+            x = log_r2.unsqueeze(1)        # → (batch, 1, T)
         x = self.input_proj(x)          # → (batch, n_channels, T)
         x = self.blocks(x)              # → (batch, n_channels, T)
         x = x.mean(dim=2)              # global average pool → (batch, n_channels)
