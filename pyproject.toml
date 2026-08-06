@@ -13,6 +13,7 @@ dependencies = [
     "tqdm>=4.66",
     "pymc>=5.0",
     "joblib>=1.5.3",
+    "yfinance>=1.5.2",
 ]
 
 [project.optional-dependencies]
