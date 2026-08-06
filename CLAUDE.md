@@ -315,12 +315,25 @@ Five architectures (MLP, CNN, LSTM, TCN, Transformer) implemented. Random hparam
 - LSTM and Transformer are computationally infeasible at scale on laptop (MPS memory/speed limits).
 - **For the thesis:** the "NNs match MCMC on φ" finding is nuanced — NNs beat stochvol (Beta prior) on φ but not NUTS (Uniform prior). This is honest context to include.
 
+### Misspecification Analysis (Chapter 6) — COMPLETE
+
+Supervisor-approved 4-way (2×2) design at T=1000: {NN, MCMC} × {base-SV-trained, correct-model} on three misspecified DGPs (ASV/leverage, SV-t/fat tails, ASV-t/both). Evaluated by parameter RMSE+bias AND out-of-sample predictive log-likelihood (particle filter). Consolidated results in `experiments/chapter6_results.md` + `chapter6_consolidated_results.json`; figures `figures/fig_ch6_*.png`. Key result: leverage weakness under the sign-blind log(r²) input was an **input-representation artifact**, fixed by adding a `sign(r)` channel (TCN `second_channel="sign"`); ρ recovery corr rose from ~0.02 to ~0.89. Verified with paired t-tests and a convergence-cleaned pass.
+
+### Empirical Application (Chapter 7) — COMPLETE
+
+15 real assets (5 FX, 5 equity index, 5 commodity ETF/index; `data/real/*.csv`), daily decimal log-returns, in-sample 2010–2017 / out-of-sample 2018–2025. Base SV and ASV-t estimated by stochvol MCMC and TCN; compared by out-of-sample predictive log-likelihood (bootstrap particle filter). Pipeline `scripts/run_real_estimation.py`; consolidated results `experiments/chapter7_results.md`; figures `figures/fig_ch7_*.png`.
+
+- **Network selection is per-model** (TCN is length-invariant via global average pooling): base SV → T=2000 net; ASV-t → **T=1000** sign-input net (training ASV-t directly at T=2000 collapsed ρ via a multi-task optimisation pathology — held-out ρ corr 0.47 vs 0.92 for the T=1000 net).
+- **MCMC**: simulation-consistent priors (fair comparison — both methods confined to the same ranges). base SV 1000/1000 draws; ASV-t 8000/6000 (EUR/USD, CHF/USD raised to 20000/10000 for near-unit-root φ). All 15 assets R-hat < 1.1.
+- **Findings**: ASV-t improves OOS fit over SV (13/15, p=0.0002); MCMC significantly beats TCN on OOS predictive LL (SV p=0.007, ASV-t p=0.001), but the TCN *ties* MCMC where the model is well-identified (equities) and loses most where parameters are weak (FX ρ≈0). Methods agree on ρ for equities (strong −ρ), disagree for commodities (TCN carries an equity-like negative-leverage bias). TCN shrinks near-unit-root φ.
+- **Particle filter freshly validated** (`scripts/validate_particle_filter.py`): exact Gauss–Hermite quadrature match to 0.001–0.003 LL (base SV, SV-t), svsim forward-leverage convention confirmed (peaks at true ρ), full parameter recovery across all four models. All checks pass.
+
 ### Pending
 
-- **Misspecification analysis** — core thesis contribution. Generate leverage model test data (SV-with-leverage simulator already implemented), apply base-SV-trained TCN and MCMC to it, measure degradation vs correctly-specified case. Run at T=1000.
-- **Real data application** — apply TCN (best architecture) to real financial returns, compare vs MCMC.
+- **Write-up**: Chapters 5, 6, 7 prose (results are complete; prose drafted externally, reviewed here).
+- Part I citation verification against source papers.
 
-*Last updated: 2026-05-12 — stochvol benchmark complete; primary benchmark switched from NUTS to stochvol (ASIS)*
+*Last updated: 2026-08-06 — Chapters 6 & 7 experiments complete and verified; particle filter independently validated*
 
 ---
 
@@ -335,4 +348,4 @@ Five architectures (MLP, CNN, LSTM, TCN, Transformer) implemented. Random hparam
 
 ---
 
-*Last updated: 2026-05-12 — stochvol benchmark complete; NUTS preserved for reference*
+*Last updated: 2026-08-06 — Chapters 6 & 7 experiments complete and verified; particle filter independently validated*
