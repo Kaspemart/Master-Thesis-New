@@ -36,3 +36,10 @@ checkpoints/
 # Misspecification per-series stochvol checkpoints — redundant with assembled *_stochvol.npz
 results/misspec/*/series_*.npz
 results/misspec/*/results.npz
+
+# Real market data (manually downloaded, small, reproducibility)
+!data/real/
+!data/real/*.csv
+
+# macOS
+.DS_Store
