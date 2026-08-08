@@ -83,6 +83,29 @@ def rho_figure():
     plt.close(fig)
 
 
+def params_figure():
+    """MCMC vs TCN scatter for mu, phi, nu (ASV-t), coloured by asset class."""
+    specs = [(0, "mu", "Log-volatility level  μ", (-10.8, -7.8)),
+             (1, "phi", "Persistence  φ", (0.84, 1.0)),
+             (4, "nu", "Degrees of freedom  ν", (3, 30))]
+    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.6))
+    for ax, (idx, key, title, lim) in zip(axes, specs):
+        for g, m in ASSET_GROUPS.items():
+            xm = [R[a]["asvt"]["mcmc"]["params"][idx] for a in m]
+            yt = [R[a]["asvt"]["tcn"]["params"][idx] for a in m]
+            ax.scatter(xm, yt, s=55, color=GROUP_COLOR[g], label=g,
+                       edgecolors="k", linewidths=0.4, alpha=0.9)
+        ax.plot(lim, lim, "k--", lw=1)
+        ax.set_xlim(lim); ax.set_ylim(lim)
+        ax.set_xlabel("MCMC"); ax.set_ylabel("TCN"); ax.set_title(title)
+        ax.grid(alpha=0.25)
+    axes[0].legend(fontsize=8.5, loc="upper left")
+    fig.suptitle("Parameter estimates, MCMC vs TCN (ASV-t model), by asset class", y=1.02)
+    fig.tight_layout()
+    fig.savefig("figures/fig_ch7_params.png", dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
 def asvt_gain_figure():
     colors = [GROUP_COLOR[g] for g, _ in ORDER]
     gain = [R[a]["asvt"]["mcmc"]["oos_ll"] - R[a]["sv"]["mcmc"]["oos_ll"] for _, a in ORDER]
@@ -103,5 +126,6 @@ def asvt_gain_figure():
 if __name__ == "__main__":
     oos_gap_figure()
     rho_figure()
+    params_figure()
     asvt_gain_figure()
-    print("Wrote figures/fig_ch7_oos_gap.png, fig_ch7_rho.png, fig_ch7_asvt_gain.png")
+    print("Wrote figures/fig_ch7_oos_gap.png, fig_ch7_rho.png, fig_ch7_params.png, fig_ch7_asvt_gain.png")
