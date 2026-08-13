@@ -84,11 +84,13 @@ def rho_figure():
 
 
 def params_figure():
-    """MCMC vs TCN scatter for mu, phi, nu (ASV-t), coloured by asset class."""
+    """MCMC vs TCN scatter for mu, phi, sigma_eta, nu (ASV-t), by asset class."""
     specs = [(0, "mu", "Log-volatility level  μ", (-10.8, -7.8)),
              (1, "phi", "Persistence  φ", (0.84, 1.0)),
+             (2, "sigma", "Volatility of volatility  ση", (0.0, 0.4)),
              (4, "nu", "Degrees of freedom  ν", (3, 30))]
-    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.6))
+    fig, axes = plt.subplots(2, 2, figsize=(9.5, 8.8))
+    axes = axes.ravel()
     for ax, (idx, key, title, lim) in zip(axes, specs):
         for g, m in ASSET_GROUPS.items():
             xm = [R[a]["asvt"]["mcmc"]["params"][idx] for a in m]
@@ -100,7 +102,7 @@ def params_figure():
         ax.set_xlabel("MCMC"); ax.set_ylabel("TCN"); ax.set_title(title)
         ax.grid(alpha=0.25)
     axes[0].legend(fontsize=8.5, loc="upper left")
-    fig.suptitle("Parameter estimates, MCMC vs TCN (ASV-t model), by asset class", y=1.02)
+    fig.suptitle("Parameter estimates, MCMC vs TCN (ASV-t model), by asset class", y=1.00)
     fig.tight_layout()
     fig.savefig("figures/fig_ch7_params.png", dpi=300, bbox_inches="tight")
     plt.close(fig)
