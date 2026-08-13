@@ -16,7 +16,7 @@ Usage:
     uv run python scripts/run_mcmc_benchmark.py --backend nuts       # NUTS, all T
     uv run python scripts/run_mcmc_benchmark.py --backend nuts --T 500
 
-NUTS configs (from CLAUDE.md pilot results):
+NUTS configs (from pilot results):
     T=500, T=1000: 1000 draws / 1000 tune / target_accept=0.9
     T=2000:        1000 draws / 2000 tune / target_accept=0.9
 

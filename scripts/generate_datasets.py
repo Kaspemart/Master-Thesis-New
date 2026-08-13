@@ -1,7 +1,7 @@
 """
 Generate all 9 base SV datasets (train / validation / test) × (T=500 / 1000 / 2000).
 
-Dataset plan (from CLAUDE.md — do not change seeds):
+Dataset plan (do not change seeds):
 
     Split       N        T     Seed  File
     -------------------------------------------------------

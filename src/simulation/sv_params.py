@@ -98,8 +98,8 @@ class SVLeverageParams(SVParams):
     Values near ±1 are excluded — they make the covariance matrix near-singular
     and are empirically implausible for any known asset class.
 
-    Note for methodology chapter: The Cholesky decomposition approach must be
-    described explicitly. See CLAUDE.md "Correlated Noise Implementation" section.
+    The Cholesky decomposition approach is described explicitly in the
+    methodology chapter.
     """
     rho_range: tuple[float, float] = (-0.95, 0.5)
 
