@@ -57,6 +57,7 @@ Empirická část: 4. Metodologie · 5. Simulační studie · 6. Analýza chybn�
 **Vizuál:** horizontální pipeline diagram (Simulace → NN / MCMC → Vyhodnocení).
 
 **REVISION (verified against code):**
+- **Model bullet (broadened):** „Diskrétní SV model a jeho rozšíření: pákový efekt (leverage), těžké chvosty (Student-t) a obojí (ASV-t)". Předchozí verze (jen base SV + leverage) podceňovala scope — SV-t a ASV-t se v misspec 2×2 „správný model" buňkách odhadují a ASV-t i v kap. 7. Čtyři modely celkem: base SV, ASV, SV-t, ASV-t.
 - **Input bullet (fixed):** vstup je `log(r²)` (logaritmus druhé mocniny výnosu), NE „logaritmus výnosu" — ověřeno v `src/models/tcn.py:114`. U leverage modelu druhý kanál `sign(r)` (tcn.py:118). Parametry v transformovaném (neomezeném) tvaru.
 - **Benchmark (clarified):** stochvol = primární; PyMC NUTS s uniform priory jen pro referenci (zkrácený bullet).
 - **Caveat:** LSTM implementována, ale výpočetně neúnosná → do finálního srovnání nevstoupila (řeší slide 7).
