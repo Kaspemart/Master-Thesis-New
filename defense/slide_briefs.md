@@ -55,7 +55,14 @@ Empirická část: 4. Metodologie · 5. Simulační studie · 6. Analýza chybn�
 **Hlavní sdělení:** Kontrolované porovnání dvou odhadů téhož SV modelu — NN (amortizovaná inference) vs MCMC — hodnocené na přesnosti parametrů i prediktivní věrohodnosti mimo vzorek.
 **Skupiny:** Model (SV + leverage) · NN (trénink na simulacích, 5 architektur) · Benchmark (stochvol: směs + ASIS) · Data (100k řad/T, oddělené množiny) · Vyhodnocení (RMSE/bias + prediktivní věrohodnost přes částicový filtr).
 **Vizuál:** horizontální pipeline diagram (Simulace → NN / MCMC → Vyhodnocení).
-**Status:** locked.
+
+**REVISION (verified against code):**
+- **Input bullet (fixed):** vstup je `log(r²)` (logaritmus druhé mocniny výnosu), NE „logaritmus výnosu" — ověřeno v `src/models/tcn.py:114`. U leverage modelu druhý kanál `sign(r)` (tcn.py:118). Parametry v transformovaném (neomezeném) tvaru.
+- **Benchmark (clarified):** stochvol = primární; PyMC NUTS s uniform priory jen pro referenci (zkrácený bullet).
+- **Caveat:** LSTM implementována, ale výpočetně neúnosná → do finálního srovnání nevstoupila (řeší slide 7).
+- **Do NOT put on slide (→ notes/backup):** konkrétní transformace (logit φ, log σ_η, arctanh ρ, log(ν−2)); rozsahy μ∈(−10,0), φ∈(0.5,0.999), σ_η∈(0.05,1.0); vnořený test set z T=2000.
+
+**Status:** locked (revised content sent to designer 2026-09-04).
 
 ---
 
